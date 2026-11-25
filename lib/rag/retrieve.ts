@@ -1,7 +1,7 @@
 import { generateText } from 'ai';
 import { fastModel } from './models';
 import type { Turn } from './prompt';
-import { search, type Hit, type Mode } from './search';
+import { search, type Hit } from './search';
 
 // Rerank relevance below this means nothing relevant was found: answer "not found" without calling the LLM.
 // Tuned on the eval set (see evals/results.md). Only applies to reranked results.
@@ -22,9 +22,9 @@ export async function rewriteQuery(history: Turn[], question: string): Promise<s
   return text.trim() || question;
 }
 
-export async function retrieve(history: Turn[], question: string, mode?: Mode) {
+export async function retrieve(history: Turn[], question: string) {
   const searchQuery = await rewriteQuery(history, question);
-  const hits: Hit[] = await search(searchQuery, mode);
+  const hits: Hit[] = await search(searchQuery);
   const top = hits[0];
   const notFound = !top || (top.reranked && top.score < RELEVANCE_FLOOR);
   return { searchQuery, hits, notFound };

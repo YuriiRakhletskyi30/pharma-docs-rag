@@ -13,7 +13,8 @@
     "fetch-labels": "tsx scripts/fetch-labels.ts",
     "build-seed": "node --env-file-if-exists=.env --import tsx scripts/build-seed.ts",
     "seed": "node --env-file-if-exists=.env --import tsx scripts/seed.ts",
-    "eval": "node --env-file-if-exists=.env --import tsx scripts/eval.ts"
+    "eval": "node --env-file-if-exists=.env --import tsx scripts/eval.ts",
+    "check-env": "node --env-file-if-exists=.env --import tsx scripts/check-env.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.0",

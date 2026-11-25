@@ -2,6 +2,7 @@ import { createUIMessageStream, createUIMessageStreamResponse, streamText, toUIM
 import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '@/lib/db/client';
+import { hasVoyage } from '@/lib/env';
 import { messages, traces } from '@/lib/db/schema';
 import { log } from '@/lib/log';
 import { checkCitations } from '@/lib/rag/citations';
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
       conversationId,
       question,
       searchQuery,
-      mode: 'hybrid_rerank',
+      mode: hasVoyage ? 'hybrid_rerank' : 'fulltext',
       retrieved: sources.map(({ n, documentId, page, heading, score }) => ({ n, documentId, page, heading, score })),
       model: outcome === 'answered' ? answerModel.modelId : null,
       inputTokens: usage?.inputTokens ?? null,

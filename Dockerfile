@@ -11,4 +11,4 @@ RUN pnpm build
 ENV NODE_ENV=production
 EXPOSE 3000
 # shortcut: migrate + seed on every start (both idempotent); in prod these run as a one-off release job
-CMD ["sh", "-c", "pnpm migrate && pnpm seed && pnpm start"]
+CMD ["sh", "-c", "pnpm check-env && pnpm migrate && pnpm seed && pnpm start"]
