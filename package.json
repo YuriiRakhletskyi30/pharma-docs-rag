@@ -14,7 +14,8 @@
     "build-seed": "node --env-file-if-exists=.env --import tsx scripts/build-seed.ts",
     "seed": "node --env-file-if-exists=.env --import tsx scripts/seed.ts",
     "eval": "node --env-file-if-exists=.env --import tsx scripts/eval.ts",
-    "check-env": "node --env-file-if-exists=.env --import tsx scripts/check-env.ts"
+    "check-env": "node --env-file-if-exists=.env --import tsx scripts/check-env.ts",
+    "release": "node --env-file-if-exists=.env --import tsx scripts/release.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.0",
@@ -29,23 +30,26 @@
     "react-dom": "19.3.0",
     "react-markdown": "^10.1.0",
     "react-pdf": "^11.1.0",
+    "tsx": "^4.23.15",
     "unpdf": "^2.2.2",
     "voyage-ai-provider": "^5.0.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
-    "@types/node": "^20",
+    "@types/node": "^24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
-    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.0"
   },
   "packageManager": "pnpm@11.10.0",
-  "type": "module"
+  "type": "module",
+  "engines": {
+    "node": ">=24.18 <25"
+  }
 }
