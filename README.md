@@ -18,22 +18,23 @@ docker compose up --build
 
 Open http://localhost:3000. If port 3000 is taken: `APP_PORT=3100 docker compose up --build`.
 
-First start runs migrations and loads the seed labels with precomputed embeddings (no Voyage calls).
+Compose first runs a one-off `release` step (migrations, then the seed labels with precomputed embeddings, so no Voyage calls), then starts the app. Ask "Which labels are loaded?" to see what is in the library.
 Without `VOYAGE_API_KEY` the app runs keyword search only and shows a banner.
 
-Local development (Node 24, pnpm):
+Local development (Node 24.22.3 from `.nvmrc`, pnpm):
 
 ```bash
 docker compose up -d db
 pnpm install
-pnpm migrate && pnpm seed
+pnpm release           # migrate + seed
 pnpm dev
 ```
 
 | Command | What it does |
 |---|---|
 | `pnpm test` | Unit tests (chunker, RRF, citation and quote check, prompt escaping, PDF highlight, not-found rule, chat history, owner cookie) and route tests for chat and upload with a mock model |
-| `pnpm eval` | Retrieval ablation + judged end-to-end answers, writes `evals/results.md` |
+| `pnpm eval` | Retrieval ablation + judged end-to-end answers + judge controls, writes `evals/results.md` |
+| `pnpm release` | Migrate and seed under a database lock (what the compose `release` service runs) |
 | `pnpm fetch-labels` | Downloads the pinned label PDFs from DailyMed |
 | `pnpm build-seed` | Re-parses, chunks and embeds the seed labels into `data/seed/vectors.json` |
 
@@ -101,7 +102,7 @@ One Next.js app. `lib/rag/*` holds the pipeline as small functions (`pdf`, `chun
 
 **Retrieval**
 - Vector top 30 + Postgres full-text top 30 (OR of query terms, `ts_rank_cd`), fused with Reciprocal Rank Fusion (k=60), then Voyage `rerank-3` picks the top 6.
-- Ablation (below): vector alone 100% hit@6 / MRR 0.78; hybrid without rerank 75% / 0.55; hybrid + rerank 100% / 0.96. The keyword leg alone adds noise on natural-language questions; the reranker is what makes hybrid pay off.
+- Ablation on 28 questions with an expected page: vector alone 100% hit@6 / MRR 0.79; hybrid without rerank 75% / 0.51; hybrid + rerank 100% / 0.92. The keyword leg alone adds noise on natural-language questions; the reranker is what makes hybrid pay off.
 
 **LLM and orchestration**
 - `claude-sonnet-5-5` answers, `claude-haiku-5-5` rewrites follow-ups and judges evals. Model ids live in one file (`lib/rag/models.ts`); any AI SDK provider fits there.
@@ -120,8 +121,8 @@ One Next.js app. `lib/rag/*` holds the pipeline as small functions (`pdf`, `chun
 - Input limits: chat body <= 32 KB and only the new question is sent (history comes from the database), question <= 1000 chars, answer <= 4000 tokens (a safety net; most answers use under 1500). Uploads: off unless `ALLOW_UPLOADS=true`, PDF only (magic bytes), 20 MB checked from `Content-Length` before the body is read, 300 pages checked before embedding, scanned PDFs rejected. Uploaded labels are tagged in the sidebar. Fixed disclaimer in the UI.
 
 **Quality controls and evals**
-- 15 hand-checked questions in `evals/golden.json`, each pinned to a label page I read: 10 answerable (one two-drug comparison), 3 out of scope, 2 patient-specific.
-- `pnpm eval`: hit@6 and MRR per retrieval mode, then full answers judged by Haiku against the reference facts (structured pass/fail + reason), plus deterministic checks for refusals, citations and quotes. Latest: 15/15, 40/40 cited quotes found word for word in their source, and the judge failed all 3 deliberately wrong control answers (a changed threshold, a false reversal claim, a dropped renal adjustment). See `evals/results.md`.
+- 33 hand-checked questions in `evals/golden.json`, each pinned to a label page I read: 25 answerable across all nine labels (one two-drug comparison, 3 follow-ups that go through the query rewrite), 5 out of scope, 3 patient-specific.
+- `pnpm eval`: hit@6 and MRR per retrieval mode, then full answers judged by Haiku against the reference facts (structured pass/fail + reason), plus deterministic checks for refusals, citations and quotes. Latest: 33/33, 88/88 cited quotes found word for word in their source, and the judge failed all 3 deliberately wrong control answers (a changed threshold, a false reversal claim, a dropped renal adjustment). 33/33 is a ceiling: the set catches regressions, it does not rank small quality changes. One out-of-scope question (vaccines) scored right at the 0.4 floor; the prompt rule is the backstop there. See `evals/results.md`.
 
 **Observability**
 - pino JSON logs with request id and conversation id.
@@ -131,7 +132,8 @@ One Next.js app. `lib/rag/*` holds the pipeline as small functions (`pdf`, `chun
 ## Key technical decisions
 
 - One Next.js app instead of UI + separate API service: less plumbing for a 10-hour build; `lib/rag` is the seam to split along later.
-- Docker image runs `next start` from a full install, not Next standalone output: standalone output skips files read at runtime (seed data, migrations). Bigger image, no tracing surprises.
+- Docker image: multi-stage, production dependencies only, runs as the `node` user with `next start` as PID 1; Node pinned by version and digest. Not Next standalone output: that skips files the release step reads (seed data, migrations), so the image is larger (~800 MB) but has no tracing surprises.
+- Migrations and seeding are a separate release step under a Postgres advisory lock: copies started together wait instead of racing (checked by running two at once on an empty database).
 - PDFs stored in Postgres (bytea): one volume holds all state.
 - Precomputed seed embeddings committed (9.6 MB): first start needs no Voyage calls; Voyage limits keys without a payment method to 3 requests/min.
 - Label PDFs committed with attribution (`data/seed/SOURCES.md`); copyright status not verified, so the README does not call them public domain.
@@ -149,7 +151,7 @@ One Next.js app. `lib/rag/*` holds the pipeline as small functions (`pdf`, `chun
 - Observability: OpenTelemetry traces to CloudWatch/X-Ray or Langfuse; dashboards on latency, tokens, not-found rate, invalid-citation rate.
 - Scale: HNSW is fine to millions of chunks; add metadata filters (label, section) and caching of query embeddings.
 - Pharma specifics: label version tracking (SPL version per document, re-ingest on update), model and prompt version pinned per answer, validation evidence for GxP-style use.
-- Rate limiting per user (not built here); data retention rules for stored questions.
+- Rate limits in a shared store (Redis / ElastiCache) instead of per-instance memory, and per-user once there is a login; data retention rules for stored questions.
 
 ## Engineering standards
 
@@ -158,6 +160,9 @@ Followed:
 - Input validated at the API boundary with zod; uploaded PDF text escaped before it reaches the PDF text layer.
 - Security headers from `next.config.ts`: a static CSP (nonces would force every page to render per request), `nosniff`, `frame-ancestors 'none'`, no `X-Powered-By`. Model answers render as text only: no images or links.
 - Every outside call has a time limit (rewrite, embed and rerank 15 s; the answer 90 s) and stops when the user presses Stop.
+- Rate limits checked before any paid call: per client (IP behind a trusted proxy, else the owner cookie) and in total, set from env; 429 with `Retry-After`.
+- Server errors go to the JSON logs and, with `ERROR_WEBHOOK_URL`, to a webhook (`instrumentation.ts`); headers and query strings are left out.
+- Questions about the library ("which labels are loaded?") are answered from the documents table, not by search or the model.
 - `/api/health` checks the database; compose uses it as the app healthcheck. `next start` runs as PID 1 so it gets SIGTERM.
 - Error and not-found pages; CI runs typecheck, lint, tests and `next build`.
 - Small focused modules; pure functions unit-tested; comments only where the reason is not obvious; known shortcuts marked `shortcut:` with their limit.
@@ -166,7 +171,7 @@ Followed:
 
 Skipped (and why):
 - No E2E browser tests; UI checked by hand at 1440 px and at phone widths from 320 to 430 px.
-- No auth, no per-user rate limit (local demo).
+- No auth (local demo). Rate limits are per instance, in memory.
 - Evals not in CI: they need paid API keys as CI secrets.
 - No integration test container for the search SQL; the eval exercises it against the real database.
 
@@ -194,7 +199,7 @@ Skipped (and why):
 - Prompt injection inside an uploaded PDF: delimiters are escaped and the prompt treats sources as data, but nothing strips instructions written in plain text inside a document.
 - The relevance floor cannot separate all out-of-scope questions (score overlap shown above).
 - No auth: anyone who can reach the app can read all documents, and upload when `ALLOW_UPLOADS=true`. Keep it off on a shared server.
-- Migrations and seeding run on every container start; with several replicas starting at once the seed can race. Production runs them once as a release job.
+- Rate limits live in each instance's memory, so N replicas allow N times the limit; without a login a client can change its IP header or drop its cookie, so the global limit is what caps spend.
 
 ## What I'd do next
 
@@ -203,7 +208,7 @@ Skipped (and why):
 - Metadata filters (by label / section) and a compare-drugs view.
 - Claim-level support check (an LLM judge per sentence): the quote check proves the words are in the source, not that they back the claim.
 - Bigger eval set from a pharmacist, plus eval runs in CI against a seeded database.
-- Auth, rate limits, async ingest worker, S3 storage.
+- Auth, shared rate limits, async ingest worker, S3 storage.
 
 ## Screenshots
 
