@@ -2,6 +2,7 @@
 
 import { ExternalLink, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { useEffect, useRef, useState } from 'react';
 import type { SourceRef } from '@/lib/types';
 
 const PdfViewer = dynamic(() => import('./pdf-viewer'), {
@@ -9,45 +10,73 @@ const PdfViewer = dynamic(() => import('./pdf-viewer'), {
   loading: () => <div className="m-3 flex-1 animate-pulse rounded bg-rail" />,
 });
 
+const iconBtn =
+  'flex size-11 shrink-0 items-center justify-center rounded text-ink-2 hover:bg-rail hover:text-ink lg:size-8';
+
 export function SourcePanel({ source, onClose }: { source: SourceRef; onClose: () => void }) {
+  const [full, setFull] = useState(false);
+  const [shownFor, setShownFor] = useState(source);
+  const close = useRef<HTMLButtonElement>(null);
+
+  // collapse the passage again when another citation opens
+  if (shownFor !== source) {
+    setShownFor(source);
+    setFull(false);
+  }
+
+  useEffect(() => close.current?.focus(), [source]);
+
+  // bullets of two-column lists extract as lone "•" lines; hide them in the preview
+  const passage = source.content.replace(/^\s*•\s*$\n?/gm, '');
+
   return (
-    <section aria-label="Cited source" className="flex h-full min-h-0 flex-col border-l border-line bg-panel">
-      <header className="flex items-start gap-3 border-b border-line px-4 py-3">
-        <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded bg-accent text-xs font-semibold tabular-nums text-white">
+    <section
+      role="dialog"
+      aria-label={`Source ${source.n}: ${source.title}`}
+      className="flex h-full min-h-0 flex-col border-l border-line bg-panel"
+    >
+      <header className="flex items-start gap-2 border-b border-line py-1.5 pr-1.5 pl-4 lg:py-3 lg:pr-3">
+        <span className="mt-2.5 flex size-6 shrink-0 items-center justify-center rounded bg-accent text-xs font-semibold tabular-nums text-white lg:mt-0.5">
           {source.n}
         </span>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 py-1.5 lg:py-0">
           <h2 className="truncate text-sm font-semibold">{source.title}</h2>
-          <p className="truncate text-xs text-ink-2">
-            {source.heading ?? 'Prescribing information'} · page {source.page}
+          <p className="text-xs text-ink-2">
+            <span className="line-clamp-2">{source.heading ?? 'Prescribing information'}</span>
+            <span className="tabular-nums">Page {source.page}</span>
           </p>
         </div>
         <a
           href={`/api/documents/${source.documentId}/file#page=${source.page}`}
           target="_blank"
           rel="noreferrer"
-          className="rounded p-1 text-ink-2 hover:bg-rail hover:text-ink"
+          className={iconBtn}
           aria-label="Open the full PDF in a new tab"
           title="Open the full PDF"
         >
           <ExternalLink className="size-4" strokeWidth={1.75} />
         </a>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded p-1 text-ink-2 hover:bg-rail hover:text-ink"
-          aria-label="Close source"
-        >
+        <button ref={close} type="button" onClick={onClose} className={iconBtn} aria-label="Close source">
           <X className="size-4" strokeWidth={1.75} />
         </button>
       </header>
 
-      <div className="max-h-44 shrink-0 overflow-y-auto border-b border-line px-4 py-3">
+      <div className="shrink-0 border-b border-line px-4 py-3">
         <p className="mb-1.5 text-xs font-medium text-ink-2">Passage sent to the model</p>
-        <p className="text-[13px] leading-relaxed whitespace-pre-line text-ink">
-          {/* bullets of two-column lists extract as lone "•" lines; hide them in the preview */}
-          {source.content.replace(/^\s*•\s*$\n?/gm, '')}
+        <p
+          className={`text-[13px] leading-relaxed whitespace-pre-line text-ink ${
+            full ? 'max-h-[40vh] overflow-y-auto' : 'max-h-32 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_70%,transparent)]'
+          }`}
+        >
+          {passage}
         </p>
+        <button
+          type="button"
+          onClick={() => setFull((f) => !f)}
+          className="mt-1 min-h-11 text-xs font-medium text-accent-strong hover:underline lg:min-h-0"
+        >
+          {full ? 'Show less' : 'Show full passage'}
+        </button>
       </div>
 
       <PdfViewer documentId={source.documentId} page={source.page} passage={source.content} />

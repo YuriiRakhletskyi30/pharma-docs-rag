@@ -16,15 +16,20 @@ const EXAMPLES = [
   'What is the maximum aspirin dose with ticagrelor?',
 ];
 
+type Selected = { messageId: string; source: SourceRef };
+
 export function Workspace() {
   const [docs, setDocs] = useState<DocItem[] | null>(null);
   const [semanticSearch, setSemanticSearch] = useState(true);
-  const [selected, setSelected] = useState<SourceRef | null>(null);
+  const [selected, setSelected] = useState<Selected | null>(null);
   const [railOpen, setRailOpen] = useState(false);
   const [input, setInput] = useState('');
   // undefined: useChat makes the first id; a random id here would run during prerender
   const [chatId, setChatId] = useState<string>();
-  const end = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const railOpener = useRef<HTMLButtonElement>(null);
+  const railClose = useRef<HTMLButtonElement>(null);
+  const citeOpener = useRef<HTMLElement | null>(null);
 
   const { messages, sendMessage, status, stop, error, regenerate } = useChat<ChatMessage>({
     id: chatId,
@@ -43,9 +48,42 @@ export function Workspace() {
     loadDocs();
   }, [loadDocs]);
 
+  // When a message is added (not on every streamed token), put the latest question at the top,
+  // so the answer streams in below it and the reader is never dragged to the bottom.
   useEffect(() => {
-    end.current?.scrollIntoView({ block: 'end' });
-  }, [messages]);
+    const box = scroller.current;
+    const q = box?.querySelectorAll<HTMLElement>('[data-role="user"]');
+    const last = q?.[q.length - 1];
+    if (!box || !last) return;
+    box.scrollTo({ top: last.offsetTop - 16, behavior: 'smooth' });
+  }, [messages.length]);
+
+  const openCite = (messageId: string, source: SourceRef) => {
+    citeOpener.current = document.activeElement as HTMLElement | null;
+    setSelected({ messageId, source });
+  };
+  const closeCite = useCallback(() => {
+    setSelected(null);
+    citeOpener.current?.focus();
+  }, []);
+  const closeRail = useCallback(() => {
+    setRailOpen(false);
+    railOpener.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (railOpen) railClose.current?.focus();
+  }, [railOpen]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (selected) closeCite();
+      else if (railOpen) closeRail();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selected, railOpen, closeCite, closeRail]);
 
   const ask = (text: string) => {
     const q = text.trim();
@@ -59,44 +97,51 @@ export function Workspace() {
     setSelected(null);
   };
 
+  // Layout: rail | chat, plus the source panel as a third column from xl.
+  // From lg to xl the panel replaces the rail; below lg it is a full-screen layer.
+  const grid = selected
+    ? 'lg:grid-cols-[minmax(0,1fr)_minmax(400px,46%)] xl:grid-cols-[264px_minmax(0,1fr)_minmax(440px,42%)]'
+    : 'lg:grid-cols-[264px_minmax(0,1fr)]';
+
   return (
-    <div
-      className={`grid h-full grid-cols-1 lg:grid-cols-[264px_minmax(0,1fr)] ${
-        selected ? 'xl:grid-cols-[264px_minmax(0,1fr)_minmax(440px,42%)]' : ''
-      }`}
-    >
-      {/* label rail: fixed drawer below lg */}
+    <div className={`grid h-full grid-cols-1 ${grid}`}>
+      {/* label rail: a drawer below lg */}
       <div
-        className={`${railOpen ? 'fixed inset-y-0 left-0 z-30 w-[280px] shadow-xl' : 'hidden'} lg:static lg:block lg:w-auto lg:shadow-none`}
+        role={railOpen ? 'dialog' : undefined}
+        aria-modal={railOpen || undefined}
+        aria-label={railOpen ? 'Labels' : undefined}
+        className={`${railOpen ? 'fixed inset-y-0 left-0 z-30 w-[300px] max-w-[85vw] shadow-xl' : 'hidden'} lg:static lg:block lg:w-auto lg:max-w-none lg:shadow-none ${
+          selected ? 'lg:hidden xl:block' : ''
+        }`}
       >
-        <Sidebar docs={docs} onUploaded={loadDocs} />
+        <Sidebar docs={docs} onUploaded={loadDocs} onClose={railOpen ? closeRail : undefined} closeRef={railClose} />
       </div>
       {railOpen && (
-        <button
-          aria-label="Close labels"
-          className="fixed inset-0 z-20 bg-ink/20 lg:hidden"
-          onClick={() => setRailOpen(false)}
-        />
+        <div aria-hidden className="fixed inset-0 z-20 bg-ink/20 lg:hidden" onClick={closeRail} />
       )}
 
       <main className="flex h-full min-h-0 min-w-0 flex-col">
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-4">
+        <header className="flex h-12 shrink-0 items-center gap-1 border-b border-line pr-2 pl-1 lg:px-4">
           <button
+            ref={railOpener}
             type="button"
-            className="rounded p-1.5 text-ink-2 hover:bg-rail lg:hidden"
+            className="flex size-11 items-center justify-center rounded text-ink-2 hover:bg-rail lg:hidden"
             aria-label="Show labels"
+            aria-expanded={railOpen}
             onClick={() => setRailOpen(true)}
           >
             <PanelLeft className="size-4" strokeWidth={1.75} />
           </button>
-          <p className="hidden text-[13px] text-ink-2 sm:block">
+          <p className="text-[14px] font-semibold tracking-tight lg:hidden">Drug Label Q&amp;A</p>
+          <p className="hidden text-[13px] text-ink-2 lg:block">
             {semanticSearch ? 'Hybrid search: meaning + keywords, reranked' : 'Keyword search only'}
           </p>
           <button
             type="button"
             onClick={newChat}
             disabled={!messages.length}
-            className="ml-auto flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] text-ink-2 hover:bg-rail hover:text-ink disabled:opacity-40"
+            aria-label="New conversation"
+            className="ml-auto flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-md px-2 text-[13px] text-ink-2 hover:bg-rail hover:text-ink disabled:opacity-40 lg:min-h-8"
           >
             <RotateCcw className="size-3.5" strokeWidth={1.75} />
             <span className="hidden sm:inline">New conversation</span>
@@ -113,10 +158,10 @@ export function Workspace() {
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex max-w-3xl flex-col gap-7 px-5 py-8">
+        <div ref={scroller} className="relative min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto flex max-w-3xl flex-col gap-7 px-5 py-6 lg:py-8">
             {messages.length === 0 && (
-              <div className="pt-[8vh]">
+              <div className="lg:pt-[8vh]">
                 <h2 className="text-2xl font-semibold tracking-tight text-balance">
                   Ask the prescribing information.
                 </h2>
@@ -140,7 +185,14 @@ export function Workspace() {
             )}
 
             {messages.map((m) => (
-              <Message key={m.id} message={m} selected={selected} onCite={setSelected} />
+              <div key={m.id} data-role={m.role}>
+                <Message
+                  message={m}
+                  selectedN={selected?.messageId === m.id ? selected.source.n : null}
+                  onCite={(s) => openCite(m.id, s)}
+                  onExample={() => ask(EXAMPLES[0])}
+                />
+              </div>
             ))}
 
             {status === 'submitted' && (
@@ -153,12 +205,17 @@ export function Workspace() {
             {error && (
               <div className="flex items-center gap-3 rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-[14px] text-danger">
                 The answer failed to load.
-                <button type="button" className="font-medium underline underline-offset-2" onClick={() => regenerate()}>
+                <button
+                  type="button"
+                  className="min-h-11 font-medium underline underline-offset-2 lg:min-h-0"
+                  onClick={() => regenerate()}
+                >
                   Try again
                 </button>
               </div>
             )}
-            <div ref={end} />
+            {/* room so the latest question can scroll to the top even when its answer is short */}
+            {messages.length > 0 && <div aria-hidden className="h-[50vh] shrink-0" />}
           </div>
         </div>
 
@@ -184,14 +241,14 @@ export function Workspace() {
                 maxLength={1000}
                 placeholder="Ask about dosing, interactions, warnings…"
                 aria-label="Question"
-                className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] outline-none placeholder:text-ink-3 focus-visible:outline-none [field-sizing:content]"
+                className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] outline-none placeholder:text-ink-3 [field-sizing:content]"
               />
               {busy ? (
                 <button
                   type="button"
                   onClick={stop}
                   aria-label="Stop answering"
-                  className="flex size-9 items-center justify-center rounded-lg bg-ink text-white hover:bg-ink-2"
+                  className="flex size-11 items-center justify-center rounded-lg bg-ink text-white hover:bg-ink-2 lg:size-9"
                 >
                   <Square className="size-3.5 fill-current" />
                 </button>
@@ -200,7 +257,7 @@ export function Workspace() {
                   type="submit"
                   disabled={!input.trim()}
                   aria-label="Ask"
-                  className="flex size-9 items-center justify-center rounded-lg bg-accent text-white hover:bg-accent-strong disabled:bg-line disabled:text-ink-3"
+                  className="flex size-11 items-center justify-center rounded-lg bg-accent text-white hover:bg-accent-strong disabled:bg-line disabled:text-ink-3 lg:size-9"
                 >
                   <ArrowUp className="size-4" strokeWidth={2} />
                 </button>
@@ -215,8 +272,8 @@ export function Workspace() {
       </main>
 
       {selected && (
-        <div className="fixed inset-0 z-40 xl:static xl:z-auto">
-          <SourcePanel source={selected} onClose={() => setSelected(null)} />
+        <div className="fixed inset-0 z-40 lg:static lg:z-auto">
+          <SourcePanel source={selected.source} onClose={closeCite} />
         </div>
       )}
     </div>

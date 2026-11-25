@@ -1,11 +1,19 @@
 'use client';
 
-import { FileText, LoaderCircle, Upload } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { FileText, LoaderCircle, Upload, X } from 'lucide-react';
+import { useRef, useState, type Ref } from 'react';
 
 export type DocItem = { id: number; title: string; pages: number; chunks: number };
 
-export function Sidebar({ docs, onUploaded }: { docs: DocItem[] | null; onUploaded: () => void }) {
+type Props = {
+  docs: DocItem[] | null;
+  onUploaded: () => void;
+  /** set when shown as the phone drawer */
+  onClose?: () => void;
+  closeRef?: Ref<HTMLButtonElement>;
+};
+
+export function Sidebar({ docs, onUploaded, onClose, closeRef }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<{ busy: boolean; error?: string; done?: string }>({ busy: false });
 
@@ -25,7 +33,18 @@ export function Sidebar({ docs, onUploaded }: { docs: DocItem[] | null; onUpload
 
   return (
     <aside className="flex h-full flex-col border-r border-line bg-rail">
-      <div className="px-5 pt-5 pb-4">
+      <div className="relative px-5 pt-5 pb-4">
+        {onClose && (
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Close labels"
+            className="absolute top-2 right-2 flex size-11 items-center justify-center rounded text-ink-2 hover:bg-panel/70 hover:text-ink lg:hidden"
+          >
+            <X className="size-4" strokeWidth={1.75} />
+          </button>
+        )}
         <h1 className="text-[15px] font-semibold tracking-tight">Drug Label Q&amp;A</h1>
         <p className="mt-1 text-[13px] leading-snug text-ink-2">
           Answers come only from these FDA prescribing labels, cited to the page.
@@ -82,7 +101,7 @@ export function Sidebar({ docs, onUploaded }: { docs: DocItem[] | null; onUpload
           type="button"
           disabled={state.busy}
           onClick={() => input.current?.click()}
-          className="flex w-full items-center justify-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-[13px] font-medium hover:border-ink-3 disabled:cursor-wait disabled:opacity-70"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-[13px] lg:min-h-0 font-medium hover:border-ink-3 disabled:cursor-wait disabled:opacity-70"
         >
           {state.busy ? (
             <LoaderCircle className="size-4 animate-spin" strokeWidth={1.75} />

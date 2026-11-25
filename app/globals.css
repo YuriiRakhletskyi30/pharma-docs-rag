@@ -50,11 +50,11 @@ body {
   color: var(--accent-strong);
 }
 
-@layer base {
-  :focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+/* Links and buttons only: text fields show focus through their container border.
+   (This file's rules land outside Tailwind's layers, so a global :focus-visible would beat outline-none.) */
+:is(a, button, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 * {
