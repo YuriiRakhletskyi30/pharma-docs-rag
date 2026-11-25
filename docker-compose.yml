@@ -5,8 +5,9 @@ services:
       POSTGRES_USER: rag
       POSTGRES_PASSWORD: rag
       POSTGRES_DB: rag
+    # dev-only credentials; bound to this machine only
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -25,6 +26,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      start_period: 60s
+      retries: 3
 
 volumes:
   pgdata:
