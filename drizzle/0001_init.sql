@@ -2,9 +2,10 @@ CREATE TABLE "chunks" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"document_id" integer NOT NULL,
 	"page" integer NOT NULL,
+	"context" text NOT NULL,
 	"heading" text,
 	"content" text NOT NULL,
-	"tsv" "tsvector" GENERATED ALWAYS AS (to_tsvector('english', coalesce(heading, '') || ' ' || content)) STORED,
+	"tsv" "tsvector" GENERATED ALWAYS AS (to_tsvector('english', context || ' ' || coalesce(heading, '') || ' ' || content)) STORED,
 	"embedding" vector(1024)
 );
 --> statement-breakpoint

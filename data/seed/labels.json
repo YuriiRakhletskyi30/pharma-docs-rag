@@ -1,0 +1,11 @@
+[
+  { "title": "Eliquis (apixaban)", "setId": "e9481622-7cc6-418a-acb6-c5450daae9b0" },
+  { "title": "Xarelto (rivaroxaban)", "setId": "10db92f9-2300-4a80-836b-673e1ae91610" },
+  { "title": "Pradaxa (dabigatran)", "setId": "ba74e3cd-b06f-4145-b284-5fd6b84ff3c9" },
+  { "title": "Savaysa (edoxaban)", "setId": "e77d3400-56ad-11e3-949a-0800200c9a66" },
+  { "title": "Jantoven (warfarin)", "setId": "19a69a72-ac5d-45d5-a94d-a5aaecbe4730" },
+  { "title": "Lovenox (enoxaparin)", "setId": "5017a927-2a24-4f27-89f9-27c805bf7d59" },
+  { "title": "Plavix (clopidogrel)", "setId": "de8b0b67-eb25-4684-83b5-7ad785314227" },
+  { "title": "Effient (prasugrel)", "setId": "69ea2d58-5353-4222-b61f-cab976fa7e5e" },
+  { "title": "Brilinta (ticagrelor)", "setId": "f7b3f443-e83d-4bf2-0e96-023448fed9a8" }
+]

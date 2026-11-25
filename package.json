@@ -9,10 +9,13 @@
     "lint": "eslint",
     "migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "fetch-labels": "tsx scripts/fetch-labels.ts",
+    "build-seed": "node --env-file-if-exists=.env --import tsx scripts/build-seed.ts",
+    "seed": "node --env-file-if-exists=.env --import tsx scripts/seed.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.108",
+    "@ai-sdk/anthropic": "^4.0.0",
     "@ai-sdk/react": "^4.0.186",
     "ai": "^7.0.181",
     "drizzle-orm": "^0.45.4",
@@ -37,7 +40,7 @@
     "tailwindcss": "4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^5",
-    "vitest": "^5.1.2"
+    "vitest": "^5.0.0"
   },
   "packageManager": "pnpm@11.10.0",
   "type": "module"

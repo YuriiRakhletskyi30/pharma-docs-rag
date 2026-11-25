@@ -33,10 +33,12 @@ export const chunks = pgTable(
       .notNull()
       .references(() => documents.id, { onDelete: 'cascade' }),
     page: integer('page').notNull(),
+    // document title copied onto each chunk: label text says "ELIQUIS", users ask about "apixaban"
+    context: text('context').notNull(),
     heading: text('heading'),
     content: text('content').notNull(),
     tsv: tsvector('tsv').generatedAlwaysAs(
-      sql`to_tsvector('english', coalesce(heading, '') || ' ' || content)`,
+      sql`to_tsvector('english', context || ' ' || coalesce(heading, '') || ' ' || content)`,
     ),
     // null when the document was ingested without an embedding key (full-text only)
     embedding: vector('embedding', { dimensions: EMBEDDING_DIMS }),

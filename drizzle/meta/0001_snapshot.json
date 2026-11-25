@@ -1,5 +1,5 @@
 {
-  "id": "d1fc36cd-80fc-42a2-8da0-6e067a72835d",
+  "id": "d903d14c-f28b-43e9-95c5-41402cd3d788",
   "prevId": "3fe9a603-bbcc-46cb-bd72-79f9c5cd7b8e",
   "version": "7",
   "dialect": "postgresql",
@@ -26,6 +26,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "context": {
+          "name": "context",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "heading": {
           "name": "heading",
           "type": "text",
@@ -44,7 +50,7 @@
           "primaryKey": false,
           "notNull": false,
           "generated": {
-            "as": "to_tsvector('english', coalesce(heading, '') || ' ' || content)",
+            "as": "to_tsvector('english', context || ' ' || coalesce(heading, '') || ' ' || content)",
             "type": "stored"
           }
         },
