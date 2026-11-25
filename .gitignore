@@ -45,3 +45,6 @@ next-env.d.ts
 # local UI QA output
 qa-shots/
 .playwright-cli/
+
+# demo video build files
+brag-output*/

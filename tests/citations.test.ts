@@ -65,6 +65,7 @@ describe('splitCitations', () => {
   it('turns each [n] into one number and keeps the text around it, nothing doubled', () => {
     expect(splitCitations('5 mg twice daily [3]. Avoid [1][2].')).toEqual(['5 mg twice daily ', 3, '. Avoid ', 1, 2, '.']);
     expect(splitCitations('no marks')).toEqual(['no marks']);
+    expect(splitCitations('1.5 mg/dL [1][1]. Then [1] again.')).toEqual(['1.5 mg/dL ', 1, '. Then ', 1, ' again.']);
   });
 });
 
