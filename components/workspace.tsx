@@ -104,7 +104,7 @@ export function Workspace() {
     : 'lg:grid-cols-[264px_minmax(0,1fr)]';
 
   return (
-    <div className={`grid h-full grid-cols-1 ${grid}`}>
+    <div className={`grid h-full grid-cols-1 grid-rows-[minmax(0,1fr)] ${grid}`}>
       {/* label rail: a drawer below lg */}
       <div
         role={railOpen ? 'dialog' : undefined}
