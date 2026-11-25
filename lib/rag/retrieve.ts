@@ -5,7 +5,7 @@ import { search, type Hit, type Mode } from './search';
 
 // Rerank relevance below this means nothing relevant was found: answer "not found" without calling the LLM.
 // Tuned on the eval set (see evals/results.md). Only applies to reranked results.
-export const RELEVANCE_FLOOR = 0.3;
+export const RELEVANCE_FLOOR = 0.4;
 
 /** Turns a follow-up ("and for kids?") into a standalone search query using recent turns. */
 export async function rewriteQuery(history: Turn[], question: string): Promise<string> {

@@ -95,7 +95,6 @@ export async function POST(req: Request) {
         model: answerModel,
         system: SYSTEM_PROMPT,
         messages: buildMessages(history, question, hits),
-        temperature: 0,
         onEnd: async ({ text, totalUsage }) => {
           const { invalid } = checkCitations(text, sources.length);
           writer.write({ type: 'data-citations', id: 'citations', data: { invalid } });
