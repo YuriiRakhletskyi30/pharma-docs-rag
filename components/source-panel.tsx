@@ -13,7 +13,7 @@ const PdfViewer = dynamic(() => import('./pdf-viewer'), {
 const iconBtn =
   'flex size-11 shrink-0 items-center justify-center rounded text-ink-2 hover:bg-rail hover:text-ink lg:size-8';
 
-export function SourcePanel({ source, onClose }: { source: SourceRef; onClose: () => void }) {
+export function SourcePanel({ source, onClose, modal }: { source: SourceRef; onClose: () => void; modal: boolean }) {
   const [full, setFull] = useState(false);
   const [shownFor, setShownFor] = useState(source);
   const close = useRef<HTMLButtonElement>(null);
@@ -32,6 +32,7 @@ export function SourcePanel({ source, onClose }: { source: SourceRef; onClose: (
   return (
     <section
       role="dialog"
+      aria-modal={modal || undefined}
       aria-label={`Source ${source.n}: ${source.title}`}
       className="flex h-full min-h-0 flex-col border-l border-line bg-panel"
     >
@@ -65,7 +66,7 @@ export function SourcePanel({ source, onClose }: { source: SourceRef; onClose: (
         <p className="mb-1.5 text-xs font-medium text-ink-3">Passage sent to the model</p>
         <p
           className={`border-l-2 border-mark-edge pl-3 text-[13.5px] leading-relaxed whitespace-pre-line text-ink ${
-            full ? 'max-h-[40vh] overflow-y-auto' : 'max-h-32 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_70%,transparent)]'
+            full ? 'max-h-[40vh] overflow-y-auto' : 'max-h-20 overflow-hidden lg:max-h-32 [mask-image:linear-gradient(to_bottom,#000_70%,transparent)]'
           }`}
         >
           {passage}

@@ -69,6 +69,7 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
         key={key}
         type="button"
         onClick={() => onCite(s)}
+        data-cite={n}
         title={sourceLabel(s)}
         aria-label={`Source ${n}: ${sourceLabel(s)}`}
         // the ::before pad gives a ~44 px tap area without changing the look
@@ -124,6 +125,7 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
                   <button
                     type="button"
                     onClick={() => onCite(s)}
+                    data-cite={s.n}
                     className={`group flex min-h-11 w-full items-center gap-2.5 py-1 text-left sm:min-h-0 text-[13.5px] ${
                       active ? 'text-ink' : 'text-ink-2 hover:text-ink'
                     }`}

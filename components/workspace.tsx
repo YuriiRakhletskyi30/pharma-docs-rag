@@ -3,7 +3,7 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { ArrowRight, ArrowUp, Info, PanelLeft, RotateCcw, Square, TriangleAlert } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { ChatMessage, SourceRef } from '@/lib/types';
 import { Message } from './message';
 import { Sidebar, type DocItem } from './sidebar';
@@ -17,6 +17,15 @@ const EXAMPLES = [
 ];
 
 type Selected = { messageId: string; source: SourceRef };
+
+// Below lg the drawer and the source panel are full-screen layers (modal); from lg they sit in the layout.
+const NARROW = '(max-width: 1023.98px)';
+const subscribeNarrow = (cb: () => void) => {
+  const mq = window.matchMedia(NARROW);
+  mq.addEventListener('change', cb);
+  return () => mq.removeEventListener('change', cb);
+};
+const useNarrow = () => useSyncExternalStore(subscribeNarrow, () => window.matchMedia(NARROW).matches, () => false);
 
 export function Workspace() {
   const [docs, setDocs] = useState<DocItem[] | null>(null);
@@ -36,6 +45,8 @@ export function Workspace() {
     transport: new DefaultChatTransport({ api: '/api/chat' }),
   });
   const busy = status === 'submitted' || status === 'streaming';
+  const narrow = useNarrow();
+  const panelModal = !!selected && narrow;
 
   const loadDocs = useCallback(async () => {
     const res = await fetch('/api/documents');
@@ -62,13 +73,19 @@ export function Workspace() {
     citeOpener.current = document.activeElement as HTMLElement | null;
     setSelected({ messageId, source });
   };
+  // Focus moves back on the next frame: until the layer closes, the content behind it is still inert.
   const closeCite = useCallback(() => {
+    const key = selected && `[data-message="${selected.messageId}"] [data-cite="${selected.source.n}"]`;
     setSelected(null);
-    citeOpener.current?.focus();
-  }, []);
+    requestAnimationFrame(() => {
+      // markdown re-renders can replace the chip that opened the panel; find its current node by message + number
+      const opener = citeOpener.current?.isConnected ? citeOpener.current : key ? document.querySelector<HTMLElement>(key) : null;
+      opener?.focus();
+    });
+  }, [selected]);
   const closeRail = useCallback(() => {
     setRailOpen(false);
-    railOpener.current?.focus();
+    requestAnimationFrame(() => railOpener.current?.focus());
   }, []);
 
   useEffect(() => {
@@ -110,6 +127,7 @@ export function Workspace() {
         role={railOpen ? 'dialog' : undefined}
         aria-modal={railOpen || undefined}
         aria-label={railOpen ? 'Labels' : undefined}
+        inert={panelModal || undefined}
         className={`${railOpen ? 'fixed inset-y-0 left-0 z-30 w-[300px] max-w-[85vw] shadow-xl' : 'hidden'} lg:static lg:block lg:w-auto lg:max-w-none lg:shadow-none ${
           selected ? 'lg:hidden xl:block' : ''
         }`}
@@ -120,7 +138,8 @@ export function Workspace() {
         <div aria-hidden className="fixed inset-0 z-20 bg-ink/20 lg:hidden" onClick={closeRail} />
       )}
 
-      <main className="flex h-full min-h-0 min-w-0 flex-col">
+      {/* inert: Tab and screen readers stay inside an open drawer or full-screen source layer */}
+      <main inert={railOpen || panelModal || undefined} className="flex h-full min-h-0 min-w-0 flex-col">
         <header className="flex h-12 shrink-0 items-center gap-1 border-b border-line pr-2 pl-1 lg:px-4">
           <button
             ref={railOpener}
@@ -193,6 +212,7 @@ export function Workspace() {
               <div
                 key={m.id}
                 data-role={m.role}
+                data-message={m.id}
                 className={m.role === 'user' && i > 0 ? 'border-t border-line pt-6' : undefined}
               >
                 <Message
@@ -282,7 +302,7 @@ export function Workspace() {
 
       {selected && (
         <div className="fixed inset-0 z-40 lg:static lg:z-auto">
-          <SourcePanel source={selected.source} onClose={closeCite} />
+          <SourcePanel source={selected.source} onClose={closeCite} modal={panelModal} />
         </div>
       )}
     </div>

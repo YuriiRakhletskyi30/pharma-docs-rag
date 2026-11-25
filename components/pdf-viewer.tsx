@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/TextLayer.css';
 import { passageRun } from './highlight';
@@ -25,14 +25,17 @@ export default function PdfViewer({ documentId, page, passage }: { documentId: n
   const [total, setTotal] = useState<number>();
   const [width, setWidth] = useState<number>();
   const [zoom, setZoom] = useState<number | null>(null);
-  const [marked, setMarked] = useState<Set<number>>(new Set());
+  // text of the cited page; the highlight is derived from it, so a second passage on the same page re-marks
+  const [items, setItems] = useState<string[] | null>(null);
   const box = useRef<HTMLDivElement>(null);
 
   // a new citation jumps to its page (state adjusted during render, no effect needed)
   if (shown.page !== page || shown.documentId !== documentId) {
     setShown({ page, documentId });
     setCurrent(page);
+    setItems(null);
   }
+  const marked = useMemo(() => (items ? passageRun(items, passage) : new Set<number>()), [items, passage]);
 
   useEffect(() => {
     const el = box.current;
@@ -128,9 +131,9 @@ export default function PdfViewer({ documentId, page, passage }: { documentId: n
               pageNumber={current}
               width={Math.floor((width - 24) * z)}
               renderAnnotationLayer={false}
-              onGetTextSuccess={({ items }) =>
-                setMarked(passageRun(items.map((it) => ('str' in it ? it.str : '')), passage))
-              }
+              onGetTextSuccess={({ items }) => {
+                if (current === page) setItems(items.map((it) => ('str' in it ? it.str : '')));
+              }}
               customTextRenderer={highlight}
               onRenderTextLayerSuccess={scrollToMark}
               loading={<div className="h-[70vh] animate-pulse rounded bg-panel" />}
