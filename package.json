@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "fetch-labels": "tsx scripts/fetch-labels.ts",
     "build-seed": "node --env-file-if-exists=.env --import tsx scripts/build-seed.ts",
