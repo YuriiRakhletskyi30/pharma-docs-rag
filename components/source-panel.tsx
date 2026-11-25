@@ -42,7 +42,7 @@ export function SourcePanel({ source, onClose }: { source: SourceRef; onClose: (
         </button>
       </header>
 
-      <div className="max-h-[28%] shrink-0 overflow-y-auto border-b border-line px-4 py-3">
+      <div className="max-h-44 shrink-0 overflow-y-auto border-b border-line px-4 py-3">
         <p className="mb-1.5 text-xs font-medium text-ink-2">Passage sent to the model</p>
         <p className="text-[13px] leading-relaxed whitespace-pre-line text-ink">
           {/* bullets of two-column lists extract as lone "•" lines; hide them in the preview */}

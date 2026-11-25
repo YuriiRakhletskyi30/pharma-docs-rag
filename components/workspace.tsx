@@ -184,7 +184,7 @@ export function Workspace() {
                 maxLength={1000}
                 placeholder="Ask about dosing, interactions, warnings…"
                 aria-label="Question"
-                className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] outline-none placeholder:text-ink-3 [field-sizing:content]"
+                className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] outline-none placeholder:text-ink-3 focus-visible:outline-none [field-sizing:content]"
               />
               {busy ? (
                 <button
