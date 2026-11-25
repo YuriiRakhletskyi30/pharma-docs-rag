@@ -11,6 +11,7 @@ import { Message } from './message';
 import { Sidebar, type DocItem } from './sidebar';
 import { SourcePanel } from './source-panel';
 
+const LIBRARY_QUESTION = 'Which labels are loaded?';
 const EXAMPLES = [
   'What is the apixaban dose for atrial fibrillation patients with renal impairment?',
   'Which drugs interact with warfarin through CYP2C9?',
@@ -284,7 +285,8 @@ export function Workspace() {
                   message={m}
                   selectedN={selected?.messageId === m.id ? selected.source.n : null}
                   onCite={(s) => openCite(m.id, s)}
-                  onExample={() => ask(EXAMPLES[0])}
+                  examples={[LIBRARY_QUESTION, EXAMPLES[0], EXAMPLES[2]]}
+                  onAsk={ask}
                 />
               </div>
             ))}

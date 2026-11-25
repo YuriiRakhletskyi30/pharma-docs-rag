@@ -17,6 +17,14 @@ vi.mock('@/lib/rag/retrieve', async (importOriginal) => ({
   retrieve: search.retrieve,
 }));
 
+const docs = vi.hoisted(() => ({
+  listLabels: vi.fn(async () => [
+    { title: 'Brilinta (ticagrelor)', uploaded: false },
+    { title: 'Eliquis (apixaban)', uploaded: false },
+  ]),
+}));
+vi.mock('@/lib/documents', () => docs);
+
 const models = vi.hoisted(() => ({ answerModel: null as unknown, fastModel: null as unknown }));
 vi.mock('@/lib/rag/models', () => models);
 
@@ -94,6 +102,17 @@ describe('POST /api/chat', () => {
     await vi.waitFor(() => expect(lastOutcome()).toBe('not_found'));
     expect(model.doStreamCalls).toHaveLength(0);
     expect(store.saveTurn).toHaveBeenCalledWith(expect.any(String), 'chat-1', 'Metformin dose?', NOT_FOUND);
+  });
+
+  it('answers "which labels do you have?" from the label list, without search or the model', async () => {
+    const model = modelSaying('should not be used');
+    models.answerModel = model;
+    const text = await (await ask('which drugs are listed?')).text();
+    expect(text).toContain('2 prescribing labels are loaded');
+    expect(text).toContain('Eliquis (apixaban)');
+    await vi.waitFor(() => expect(lastOutcome()).toBe('library'));
+    expect(search.retrieve).not.toHaveBeenCalled();
+    expect(model.doStreamCalls).toHaveLength(0);
   });
 
   it('flags an answer cut off by the token limit', async () => {

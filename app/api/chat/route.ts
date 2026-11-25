@@ -2,9 +2,11 @@ import { createUIMessageStream, createUIMessageStreamResponse, streamText, toUIM
 import { z } from 'zod';
 import { loadHistory, saveTurn, writeTrace, type TraceInput } from '@/lib/chat-store';
 import { MAX_QUESTION_CHARS } from '@/lib/constants';
+import { listLabels } from '@/lib/documents';
 import { log } from '@/lib/log';
 import { ownerCookie, readOwner } from '@/lib/owner';
 import { checkCitations, classifyAnswer, type Outcome } from '@/lib/rag/citations';
+import { isLibraryQuestion, libraryAnswer } from '@/lib/rag/library';
 import { answerModel } from '@/lib/rag/models';
 import { buildMessages, NOT_FOUND, SYSTEM_PROMPT, type Turn } from '@/lib/rag/prompt';
 import { retrieve, toSourceRefs } from '@/lib/rag/retrieve';
@@ -83,6 +85,30 @@ export async function POST(req: Request) {
     if (outcome === 'error') rlog.error({ err }, 'chat failed');
     await trace(outcome);
   };
+
+  // "Which labels do you have?" is answered from the documents table: search can't, and a model would guess.
+  async function answerFromLibrary() {
+    let answer: string;
+    try {
+      answer = libraryAnswer(await listLabels());
+    } catch (err) {
+      await failed(err, 'error');
+      return Response.json({ error: 'Could not read the label list. Please try again.' }, { status: 500, headers });
+    }
+    const stream = createUIMessageStream<ChatMessage>({
+      execute: async ({ writer }) => {
+        writer.write({ type: 'start' });
+        writer.write({ type: 'text-start', id: 'lib' });
+        writer.write({ type: 'text-delta', id: 'lib', delta: answer });
+        writer.write({ type: 'text-end', id: 'lib' });
+        writer.write({ type: 'finish' });
+        await saveTurn(owner, conversationId, question, answer);
+        await trace('library');
+      },
+    });
+    return createUIMessageStreamResponse({ stream, headers });
+  }
+  if (isLibraryQuestion(question)) return answerFromLibrary();
 
   let history: Turn[];
   let hits: Hit[];

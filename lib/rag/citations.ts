@@ -57,6 +57,7 @@ export type Outcome =
   | 'answered'
   | 'not_found'
   | 'not_found_by_model'
+  | 'library'
   | 'answered_invalid_citations'
   | 'answered_cut_off'
   | 'answered_no_citations'

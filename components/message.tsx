@@ -12,10 +12,12 @@ type Props = {
   /** source number open in the panel, if it belongs to this message */
   selectedN: number | null;
   onCite: (s: SourceRef) => void;
-  onExample: () => void;
+  /** questions offered when nothing was found */
+  examples: string[];
+  onAsk: (question: string) => void;
 };
 
-export function Message({ message, selectedN, onCite, onExample }: Props) {
+export function Message({ message, selectedN, onCite, examples, onAsk }: Props) {
   // while streaming, hide a citation that has started but not closed yet ([2 "reduce the do…)
   const text = message.parts
     .map((p) => (p.type === 'text' ? p.text : ''))
@@ -37,15 +39,21 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
         <p className="text-[15px] font-medium">Not in the loaded labels.</p>
         <p className="mt-1 text-[13.5px] leading-relaxed text-ink-3">
           No passage answered this, so nothing was generated. The labels cover dosing, interactions, warnings and use in
-          specific populations for the drugs on the left.
+          specific patient groups. Try one of these:
         </p>
-        <button
-          type="button"
-          onClick={onExample}
-          className="mt-1 min-h-11 text-[13.5px] font-medium text-ink-2 underline underline-offset-2 hover:text-ink lg:min-h-0 lg:py-1"
-        >
-          Try an example question
-        </button>
+        <ul className="mt-1.5">
+          {examples.map((q) => (
+            <li key={q}>
+              <button
+                type="button"
+                onClick={() => onAsk(q)}
+                className="min-h-11 py-1.5 text-left text-[13.5px] font-medium text-ink-2 underline underline-offset-2 hover:text-ink lg:min-h-0 lg:py-1"
+              >
+                {q}
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
     );
   }
