@@ -2,9 +2,11 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { ArrowRight, ArrowUp, Info, PanelLeft, RotateCcw, Square, TriangleAlert } from 'lucide-react';
+import { ArrowRight, ArrowUp, Info, PanelLeft, Square, SquarePen, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { MAX_QUESTION_CHARS } from '@/lib/constants';
 import type { ChatMessage, SourceRef } from '@/lib/types';
+import { deleteChat, loadChats, saveChat, type SavedChat } from './history';
 import { Message } from './message';
 import { Sidebar, type DocItem } from './sidebar';
 import { SourcePanel } from './source-panel';
@@ -17,6 +19,7 @@ const EXAMPLES = [
 ];
 
 type Selected = { messageId: string; source: SourceRef };
+type DocsResponse = { documents: DocItem[]; semanticSearch: boolean; uploads: boolean };
 
 // Below lg the drawer and the source panel are full-screen layers (modal); from lg they sit in the layout.
 const NARROW = '(max-width: 1023.98px)';
@@ -30,33 +33,66 @@ const useNarrow = () => useSyncExternalStore(subscribeNarrow, () => window.match
 export function Workspace() {
   const [docs, setDocs] = useState<DocItem[] | null>(null);
   const [semanticSearch, setSemanticSearch] = useState(true);
+  const [uploads, setUploads] = useState(false);
+  const [docsError, setDocsError] = useState(false);
   const [selected, setSelected] = useState<Selected | null>(null);
   const [railOpen, setRailOpen] = useState(false);
   const [input, setInput] = useState('');
-  // undefined: useChat makes the first id; a random id here would run during prerender
-  const [chatId, setChatId] = useState<string>();
+  // A random id at render time would be baked into the prerendered page (and useChat would make one itself),
+  // so the first render uses a placeholder and the real id is set right after mount, before anyone can type.
+  const [chatId, setChatId] = useState('prerender');
+  const [opened, setOpened] = useState<ChatMessage[]>();
+  const [chats, setChats] = useState<SavedChat[]>([]);
+  const currentId = useRef<string>(undefined);
   const scroller = useRef<HTMLDivElement>(null);
   const railOpener = useRef<HTMLButtonElement>(null);
   const railClose = useRef<HTMLButtonElement>(null);
   const citeOpener = useRef<HTMLElement | null>(null);
 
-  const { messages, sendMessage, status, stop, error, regenerate } = useChat<ChatMessage>({
+  const { id, messages, sendMessage, status, stop, error, regenerate } = useChat<ChatMessage>({
     id: chatId,
-    transport: new DefaultChatTransport({ api: '/api/chat' }),
+    messages: opened,
+    // every finished, stopped or failed turn updates this browser's history
+    onFinish: ({ messages: all }) => {
+      const chatId = currentId.current;
+      if (chatId && all.length) setChats((list) => saveChat(list, chatId, all));
+    },
+    // the server keeps the history, so only the new question is sent
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+      prepareSendMessagesRequest: ({ id, messages }) => ({ body: { id, messages: messages.slice(-1) } }),
+    }),
   });
+  useEffect(() => {
+    currentId.current = id;
+  }, [id]);
   const busy = status === 'submitted' || status === 'streaming';
+  // the server sends the sources first and the words later: keep the status line until text arrives
+  const last = messages.at(-1);
+  const waiting =
+    busy && (last?.role !== 'assistant' || !last.parts.some((p) => p.type === 'text' && p.text.trim()));
+  const passages = last?.role === 'assistant' ? last.parts.find((p) => p.type === 'data-sources')?.data.items.length : undefined;
   const narrow = useNarrow();
   const panelModal = !!selected && narrow;
 
   const loadDocs = useCallback(async () => {
-    const res = await fetch('/api/documents');
-    const json = await res.json();
+    setDocsError(false);
+    const res = await fetch('/api/documents').catch(() => null);
+    const json: DocsResponse | null = res?.ok ? await res.json().catch(() => null) : null;
+    if (!json) {
+      setDocsError(true);
+      setDocs([]);
+      return;
+    }
     setDocs(json.documents);
     setSemanticSearch(json.semanticSearch);
+    setUploads(json.uploads);
   }, []);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time fetch on mount
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time fetch and history read on mount
     loadDocs();
+    setChats(loadChats());
+    setChatId(crypto.randomUUID());
   }, [loadDocs]);
 
   // When a message is added (not on every streamed token), put the latest question at the top,
@@ -109,9 +145,25 @@ export function Workspace() {
     setInput('');
   };
 
-  const newChat = () => {
-    setChatId(crypto.randomUUID());
+  const switchTo = (nextId: string, msgs?: ChatMessage[]) => {
+    if (busy) stop();
+    setOpened(msgs);
+    setChatId(nextId);
     setSelected(null);
+    if (railOpen) closeRail();
+  };
+  const newChat = () => switchTo(crypto.randomUUID());
+  const openChat = (c: SavedChat) => c.id !== id && switchTo(c.id, c.messages);
+  const removeChat = async (c: SavedChat) => {
+    if (!window.confirm(`Delete "${c.title}"? This can't be undone.`)) return;
+    // the server copy goes first: if that fails, keep the chat so the delete can be retried
+    const res = await fetch(`/api/chats/${encodeURIComponent(c.id)}`, { method: 'DELETE' }).catch(() => null);
+    if (!res?.ok) {
+      window.alert('Could not delete this chat on the server. Check the connection and try again.');
+      return;
+    }
+    setChats((list) => deleteChat(list, c.id));
+    if (c.id === id) newChat();
   };
 
   // Layout: rail | chat, plus the source panel as a third column from xl.
@@ -126,13 +178,26 @@ export function Workspace() {
       <div
         role={railOpen ? 'dialog' : undefined}
         aria-modal={railOpen || undefined}
-        aria-label={railOpen ? 'Labels' : undefined}
+        aria-label={railOpen ? 'Chats and labels' : undefined}
         inert={panelModal || undefined}
         className={`${railOpen ? 'fixed inset-y-0 left-0 z-30 w-[300px] max-w-[85vw] shadow-xl' : 'hidden'} lg:static lg:block lg:w-auto lg:max-w-none lg:shadow-none ${
           selected ? 'lg:hidden xl:block' : ''
         }`}
       >
-        <Sidebar docs={docs} onUploaded={loadDocs} onClose={railOpen ? closeRail : undefined} closeRef={railClose} />
+        <Sidebar
+          chats={chats}
+          activeId={messages.length ? id : undefined}
+          onOpenChat={openChat}
+          onDeleteChat={removeChat}
+          onNewChat={newChat}
+          docs={docs}
+          docsError={docsError}
+          onRetryDocs={loadDocs}
+          uploads={uploads}
+          onUploaded={loadDocs}
+          onClose={railOpen ? closeRail : undefined}
+          closeRef={railClose}
+        />
       </div>
       {railOpen && (
         <div aria-hidden className="fixed inset-0 z-20 bg-ink/20 lg:hidden" onClick={closeRail} />
@@ -145,7 +210,7 @@ export function Workspace() {
             ref={railOpener}
             type="button"
             className="flex size-11 items-center justify-center rounded text-ink-2 hover:bg-rail lg:hidden"
-            aria-label="Show labels"
+            aria-label="Show chats and labels"
             aria-expanded={railOpen}
             onClick={() => setRailOpen(true)}
           >
@@ -159,11 +224,11 @@ export function Workspace() {
             type="button"
             onClick={newChat}
             disabled={!messages.length}
-            aria-label="New conversation"
+            aria-label="New chat"
             className="ml-auto flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-md px-2 text-[13px] text-ink-2 hover:bg-rail hover:text-ink disabled:opacity-40 lg:min-h-8"
           >
-            <RotateCcw className="size-3.5" strokeWidth={1.75} />
-            <span className="hidden sm:inline">New conversation</span>
+            <SquarePen className="size-3.5" strokeWidth={1.75} />
+            <span className="hidden sm:inline">New chat</span>
           </button>
         </header>
 
@@ -213,7 +278,7 @@ export function Workspace() {
                 key={m.id}
                 data-role={m.role}
                 data-message={m.id}
-                className={m.role === 'user' && i > 0 ? 'border-t border-line pt-6' : undefined}
+                className={m.role === 'user' ? `flex justify-end ${i > 0 ? 'pt-3' : ''}` : undefined}
               >
                 <Message
                   message={m}
@@ -224,10 +289,10 @@ export function Workspace() {
               </div>
             ))}
 
-            {status === 'submitted' && (
+            {waiting && (
               <p className="flex items-center gap-2 text-[14px] text-ink-2" role="status">
                 <span className="size-1.5 animate-pulse rounded-full bg-cite" />
-                Searching the labels…
+                {passages ? `Reading ${passages} passage${passages === 1 ? '' : 's'}…` : 'Searching the labels…'}
               </p>
             )}
 
@@ -267,7 +332,7 @@ export function Workspace() {
                   }
                 }}
                 rows={1}
-                maxLength={1000}
+                maxLength={MAX_QUESTION_CHARS}
                 placeholder="Ask about dosing, interactions, warnings…"
                 aria-label="Question"
                 className="max-h-40 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] outline-none placeholder:text-ink-3 [field-sizing:content]"

