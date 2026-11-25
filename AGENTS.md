@@ -1,5 +1,3 @@
-<!-- Yurii: rewrite this file in your own words, then delete this line. Facts below are a starting point. -->
-
 # Working on this repo (people and coding agents)
 
 ## Stack and commands
@@ -18,7 +16,11 @@
 - Never commit `.env` or keys.
 
 ## Review steps for generated code
-<!-- Yurii: describe how you review what an agent writes (what you read line by line, what you test by hand). -->
+- Read the whole diff before it is committed; anything touching `lib/rag`, prompts or SQL gets read line by line.
+- Run `pnpm typecheck && pnpm lint && pnpm test`; for prompt or retrieval changes also `pnpm eval` and compare `evals/results.md` with the last run.
+- Ask a second agent to break the change (edge cases, wrong numbers, stopped streams) before trusting it.
+- Try the change in the browser: a real question, the citations, the source panel, and the screens at phone width (320-430 px).
+- New library behaviour gets a live probe against the real API before code depends on it.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
