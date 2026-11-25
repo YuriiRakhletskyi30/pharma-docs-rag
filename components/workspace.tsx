@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { ArrowUp, Info, PanelLeft, RotateCcw, Square, TriangleAlert } from 'lucide-react';
+import { ArrowRight, ArrowUp, Info, PanelLeft, RotateCcw, Square, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatMessage, SourceRef } from '@/lib/types';
 import { Message } from './message';
@@ -133,7 +133,7 @@ export function Workspace() {
             <PanelLeft className="size-4" strokeWidth={1.75} />
           </button>
           <p className="text-[14px] font-semibold tracking-tight lg:hidden">Drug Label Q&amp;A</p>
-          <p className="hidden text-[13px] text-ink-2 lg:block">
+          <p className="hidden font-mono text-[11px] text-ink-3 lg:block">
             {semanticSearch ? 'Hybrid search: meaning + keywords, reranked' : 'Keyword search only'}
           </p>
           <button
@@ -162,30 +162,39 @@ export function Workspace() {
           <div className="mx-auto flex max-w-3xl flex-col gap-7 px-5 py-6 lg:py-8">
             {messages.length === 0 && (
               <div className="lg:pt-[8vh]">
-                <h2 className="text-2xl font-semibold tracking-tight text-balance">
+                <h2 className="text-[28px] font-semibold tracking-[-0.025em] text-balance">
                   Ask the prescribing information.
                 </h2>
                 <p className="mt-2 max-w-[60ch] text-[15px] leading-relaxed text-ink-2">
                   Every answer is built from label passages and cites them. Click a number to see the passage and the
                   page it came from. If the labels don&apos;t cover a question, it says so.
                 </p>
-                <div className="mt-6 grid gap-2 sm:grid-cols-2">
+                <ul className="mt-7 divide-y divide-line border-y border-line">
                   {EXAMPLES.map((q) => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => ask(q)}
-                      className="rounded-lg border border-line bg-panel px-4 py-3 text-left text-[14px] leading-snug text-ink hover:border-accent"
-                    >
-                      {q}
-                    </button>
+                    <li key={q}>
+                      <button
+                        type="button"
+                        onClick={() => ask(q)}
+                        className="group flex w-full items-center gap-4 px-1 py-3 text-left text-[15px] leading-snug text-ink hover:bg-rail"
+                      >
+                        <span className="flex-1">{q}</span>
+                        <ArrowRight
+                          className="size-4 shrink-0 text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-ink"
+                          strokeWidth={1.75}
+                        />
+                      </button>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </div>
             )}
 
-            {messages.map((m) => (
-              <div key={m.id} data-role={m.role}>
+            {messages.map((m, i) => (
+              <div
+                key={m.id}
+                data-role={m.role}
+                className={m.role === 'user' && i > 0 ? 'border-t border-line pt-6' : undefined}
+              >
                 <Message
                   message={m}
                   selectedN={selected?.messageId === m.id ? selected.source.n : null}
@@ -197,7 +206,7 @@ export function Workspace() {
 
             {status === 'submitted' && (
               <p className="flex items-center gap-2 text-[14px] text-ink-2" role="status">
-                <span className="size-1.5 animate-pulse rounded-full bg-accent" />
+                <span className="size-1.5 animate-pulse rounded-full bg-cite" />
                 Searching the labels…
               </p>
             )}
@@ -227,7 +236,7 @@ export function Workspace() {
           className="shrink-0 px-5 pb-4"
         >
           <div className="mx-auto max-w-3xl">
-            <div className="flex items-end gap-2 rounded-xl border border-line bg-panel p-2 focus-within:border-accent">
+            <div className="flex items-end gap-2 rounded-lg border border-line bg-panel p-2 focus-within:border-ink-3">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -248,7 +257,7 @@ export function Workspace() {
                   type="button"
                   onClick={stop}
                   aria-label="Stop answering"
-                  className="flex size-11 items-center justify-center rounded-lg bg-ink text-white hover:bg-ink-2 lg:size-9"
+                  className="flex size-11 items-center justify-center rounded-md bg-ink text-white hover:bg-ink-2 lg:size-9"
                 >
                   <Square className="size-3.5 fill-current" />
                 </button>
@@ -257,7 +266,7 @@ export function Workspace() {
                   type="submit"
                   disabled={!input.trim()}
                   aria-label="Ask"
-                  className="flex size-11 items-center justify-center rounded-lg bg-accent text-white hover:bg-accent-strong disabled:bg-line disabled:text-ink-3 lg:size-9"
+                  className="flex size-11 items-center justify-center rounded-md bg-ink text-white hover:bg-ink-2 disabled:bg-line disabled:text-ink-3 lg:size-9"
                 >
                   <ArrowUp className="size-4" strokeWidth={2} />
                 </button>

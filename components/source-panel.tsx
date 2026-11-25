@@ -36,14 +36,14 @@ export function SourcePanel({ source, onClose }: { source: SourceRef; onClose: (
       className="flex h-full min-h-0 flex-col border-l border-line bg-panel"
     >
       <header className="flex items-start gap-2 border-b border-line py-1.5 pr-1.5 pl-4 lg:py-3 lg:pr-3">
-        <span className="mt-2.5 flex size-6 shrink-0 items-center justify-center rounded bg-accent text-xs font-semibold tabular-nums text-white lg:mt-0.5">
+        <span className="mt-2.5 flex size-6 shrink-0 items-center justify-center rounded bg-cite-soft font-mono text-xs font-medium text-cite lg:mt-0.5">
           {source.n}
         </span>
         <div className="min-w-0 flex-1 py-1.5 lg:py-0">
           <h2 className="truncate text-sm font-semibold">{source.title}</h2>
-          <p className="text-xs text-ink-2">
+          <p className="text-xs text-ink-3">
             <span className="line-clamp-2">{source.heading ?? 'Prescribing information'}</span>
-            <span className="tabular-nums">Page {source.page}</span>
+            <span className="font-mono text-[11px]">p. {source.page}</span>
           </p>
         </div>
         <a
@@ -62,9 +62,9 @@ export function SourcePanel({ source, onClose }: { source: SourceRef; onClose: (
       </header>
 
       <div className="shrink-0 border-b border-line px-4 py-3">
-        <p className="mb-1.5 text-xs font-medium text-ink-2">Passage sent to the model</p>
+        <p className="mb-1.5 text-xs font-medium text-ink-3">Passage sent to the model</p>
         <p
-          className={`text-[13px] leading-relaxed whitespace-pre-line text-ink ${
+          className={`border-l-2 border-mark-edge pl-3 text-[13.5px] leading-relaxed whitespace-pre-line text-ink ${
             full ? 'max-h-[40vh] overflow-y-auto' : 'max-h-32 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_70%,transparent)]'
           }`}
         >
@@ -73,7 +73,7 @@ export function SourcePanel({ source, onClose }: { source: SourceRef; onClose: (
         <button
           type="button"
           onClick={() => setFull((f) => !f)}
-          className="mt-1 min-h-11 text-xs font-medium text-accent-strong hover:underline lg:min-h-0"
+          className="mt-1 min-h-11 text-xs font-medium text-ink-2 hover:text-ink hover:underline lg:min-h-0"
         >
           {full ? 'Show less' : 'Show full passage'}
         </button>

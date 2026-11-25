@@ -1,16 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --surface: #f6f7f5;
-  --rail: #eceeea;
+  --surface: #fbfbfa;
+  --rail: #f7f6f3;
   --panel: #ffffff;
-  --ink: #16211e;
-  --ink-2: #4a5752;
-  --ink-3: #6b7671;
-  --line: #d9ded9;
-  --accent: #0e5c53;
-  --accent-strong: #0a463f;
-  --accent-soft: #e0ede9;
+  --ink: #2f3437;
+  --ink-2: #55595c;
+  --ink-3: #787774;
+  --line: #eaeaea;
+  /* colour is kept for meaning: citations and the cited passage */
+  --cite: #1f6c9f;
+  --cite-soft: #e1f3fe;
+  --mark: rgb(251 225 140 / 0.55);
+  --mark-edge: #e9c46a;
   --warn-ink: #7a5200;
   --warn-soft: #fbf1dc;
   --danger: #a3302a;
@@ -25,14 +27,15 @@
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-line: var(--line);
-  --color-accent: var(--accent);
-  --color-accent-strong: var(--accent-strong);
-  --color-accent-soft: var(--accent-soft);
+  --color-cite: var(--cite);
+  --color-cite-soft: var(--cite-soft);
+  --color-mark-edge: var(--mark-edge);
   --color-warn-ink: var(--warn-ink);
   --color-warn-soft: var(--warn-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
-  --font-sans: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 html {
@@ -46,14 +49,13 @@ body {
 }
 
 ::selection {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  background: var(--cite-soft);
+  color: var(--ink);
 }
 
-/* Links and buttons only: text fields show focus through their container border.
-   (This file's rules land outside Tailwind's layers, so a global :focus-visible would beat outline-none.) */
+/* Links and buttons only: text fields show focus through their container border. */
 :is(a, button, summary):focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--cite);
   outline-offset: 2px;
 }
 
@@ -82,13 +84,23 @@ body {
 .answer strong {
   font-weight: 600;
 }
+/* a paragraph that is only bold text is a section heading in the answer */
+.answer .lead:not(:first-child) {
+  margin-top: 1.4em;
+}
+.answer .lead {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
 .answer > :first-child {
   margin-top: 0;
 }
 
 /* cited passage inside the PDF text layer */
 .pdf-page mark {
-  background: rgb(14 92 83 / 0.22);
+  background: var(--mark);
   color: transparent;
   border-radius: 2px;
 }

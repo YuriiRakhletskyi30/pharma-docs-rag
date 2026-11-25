@@ -67,7 +67,7 @@ export default function PdfViewer({ documentId, page, passage }: { documentId: n
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-1 border-b border-line px-2 py-1 text-xs text-ink-2 lg:px-3">
+      <div className="flex items-center gap-1 border-b border-line px-2 py-1 font-mono text-[11px] text-ink-3 lg:px-3">
         <span className="px-2 tabular-nums">
           Page {current}
           {total ? ` of ${total}` : ''}
@@ -76,7 +76,7 @@ export default function PdfViewer({ documentId, page, passage }: { documentId: n
           <button
             type="button"
             onClick={() => setCurrent(page)}
-            className="min-h-11 rounded px-2 font-medium text-accent-strong hover:bg-accent-soft lg:min-h-8"
+            className="min-h-11 rounded px-2 font-medium text-ink-2 hover:bg-rail hover:text-ink lg:min-h-8"
           >
             Back to cited page {page}
           </button>

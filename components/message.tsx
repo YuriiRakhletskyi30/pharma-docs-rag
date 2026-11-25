@@ -1,11 +1,10 @@
 'use client';
 
-import { SearchX } from 'lucide-react';
 import { Children, isValidElement, cloneElement, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { NOT_FOUND } from '@/lib/rag/prompt';
 import type { ChatMessage, SourceRef } from '@/lib/types';
-import { drugName, sourceLabel } from './cite';
+import { sourceLabel } from './cite';
 
 type Props = {
   message: ChatMessage;
@@ -20,32 +19,27 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
 
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end">
-        <p className="max-w-[85%] rounded-lg bg-rail px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap">
-          {text}
-        </p>
-      </div>
+      <h3 className="text-lg leading-snug font-semibold tracking-[-0.015em] whitespace-pre-wrap">
+        {text}
+      </h3>
     );
   }
 
   if (text.trim() === NOT_FOUND) {
     return (
-      <div className="flex max-w-[70ch] gap-3 rounded-lg border border-line bg-panel px-4 py-3">
-        <SearchX className="mt-0.5 size-4 shrink-0 text-ink-2" strokeWidth={1.75} />
-        <div className="text-[14px] leading-relaxed">
-          <p className="font-medium">Not in the loaded labels.</p>
-          <p className="mt-0.5 text-ink-2">
-            No passage answered this, so nothing was generated. The labels cover dosing, interactions, warnings and use
-            in specific populations for the drugs on the left.
-          </p>
-          <button
-            type="button"
-            onClick={onExample}
-            className="mt-1 min-h-11 font-medium text-accent-strong hover:underline lg:min-h-0 lg:py-1"
-          >
-            Try an example question
-          </button>
-        </div>
+      <div className="max-w-[70ch] border-l-2 border-line pl-4">
+        <p className="text-[15px] font-medium">Not in the loaded labels.</p>
+        <p className="mt-1 text-[13.5px] leading-relaxed text-ink-3">
+          No passage answered this, so nothing was generated. The labels cover dosing, interactions, warnings and use in
+          specific populations for the drugs on the left.
+        </p>
+        <button
+          type="button"
+          onClick={onExample}
+          className="mt-1 min-h-11 text-[13.5px] font-medium text-ink-2 underline underline-offset-2 hover:text-ink lg:min-h-0 lg:py-1"
+        >
+          Try an example question
+        </button>
       </div>
     );
   }
@@ -78,8 +72,8 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
         title={sourceLabel(s)}
         aria-label={`Source ${n}: ${sourceLabel(s)}`}
         // the ::before pad gives a ~44 px tap area without changing the look
-        className={`relative mx-0.5 inline-flex h-[18px] min-w-[18px] translate-y-[-1px] items-center justify-center rounded px-1 align-middle text-[11.5px] font-semibold tabular-nums transition-colors before:absolute before:-inset-[13px] before:content-[''] ${
-          selectedN === n ? 'bg-accent text-white' : 'bg-accent-soft text-accent-strong hover:bg-accent hover:text-white'
+        className={`relative mx-px inline-flex h-[18px] min-w-[18px] translate-y-[-1px] items-center justify-center rounded px-1 align-middle font-mono text-[11px] font-medium transition-colors before:absolute before:-inset-[13px] before:content-[''] ${
+          selectedN === n ? 'bg-cite text-white' : 'bg-cite-soft text-cite hover:bg-cite hover:text-white'
         }`}
       >
         {n}
@@ -104,10 +98,14 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
 
   return (
     <div>
-      <div className="answer max-w-[70ch] text-[15px] leading-relaxed">
+      <div className="answer max-w-[70ch] text-[15.5px] leading-[1.65]">
         <ReactMarkdown
           components={{
-            p: ({ children }) => <p>{withChips(children)}</p>,
+            p: ({ node, children }) => {
+              const only = node?.children.length === 1 ? node.children[0] : undefined;
+              const lead = only?.type === 'element' && only.tagName === 'strong';
+              return <p className={lead ? 'lead' : undefined}>{withChips(children)}</p>;
+            },
             li: ({ children }) => <li>{withChips(children)}</li>,
           }}
         >
@@ -116,25 +114,36 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
       </div>
 
       {cited.length > 0 && (
-        <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap">
-          {cited.map((s) => (
-            <button
-              key={s.n}
-              type="button"
-              onClick={() => onCite(s)}
-              title={sourceLabel(s)}
-              className={`flex min-h-11 min-w-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-left text-[12.5px] transition-colors sm:min-h-0 sm:max-w-[46ch] ${
-                selectedN === s.n
-                  ? 'border-accent bg-accent-soft text-accent-strong'
-                  : 'border-line bg-panel text-ink-2 hover:border-accent hover:text-accent-strong'
-              }`}
-            >
-              <span className="font-semibold tabular-nums">{s.n}</span>
-              <span className="shrink-0">{drugName(s)}</span>
-              {s.heading && <span className="min-w-0 truncate">· {s.heading}</span>}
-              <span className="shrink-0 tabular-nums">· p. {s.page}</span>
-            </button>
-          ))}
+        <div className="mt-5 max-w-[70ch] border-t border-line pt-3">
+          <h4 className="mb-1 text-[11.5px] font-medium tracking-[0.06em] text-ink-3 uppercase">References</h4>
+          <ol>
+            {cited.map((s) => {
+              const active = selectedN === s.n;
+              return (
+                <li key={s.n}>
+                  <button
+                    type="button"
+                    onClick={() => onCite(s)}
+                    className={`group flex min-h-11 w-full items-center gap-2.5 py-1 text-left sm:min-h-0 text-[13.5px] ${
+                      active ? 'text-ink' : 'text-ink-2 hover:text-ink'
+                    }`}
+                  >
+                    <span
+                      className={`min-w-[22px] rounded px-1 py-px text-center font-mono text-[11px] ${
+                        active ? 'bg-cite text-white' : 'bg-cite-soft text-cite'
+                      }`}
+                    >
+                      {s.n}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate group-hover:underline group-hover:underline-offset-2">
+                      {sourceLabel(s, false)}
+                    </span>
+                    <span className="shrink-0 font-mono text-[11px] text-ink-3">p. {s.page}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
         </div>
       )}
     </div>

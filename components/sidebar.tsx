@@ -53,7 +53,7 @@ export function Sidebar({ docs, onUploaded, onClose, closeRef }: Props) {
 
       <div className="flex items-baseline justify-between px-5 pb-2">
         <h2 className="text-xs font-medium text-ink-2">Labels</h2>
-        <span className="text-xs tabular-nums text-ink-3">{docs?.length ?? ''}</span>
+        <span className="font-mono text-[11px] text-ink-3">{docs?.length ?? ''}</span>
       </div>
 
       <ul className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
@@ -70,13 +70,13 @@ export function Sidebar({ docs, onUploaded, onClose, closeRef }: Props) {
               href={`/api/documents/${d.id}/file`}
               target="_blank"
               rel="noreferrer"
-              className="group flex items-start gap-2.5 rounded-md px-2 py-1.5 hover:bg-panel/70"
+              className="group flex items-start gap-2.5 rounded-md px-2 py-1.5 hover:bg-panel"
               title="Open the full PDF"
             >
-              <FileText className="mt-0.5 size-4 shrink-0 text-ink-3 group-hover:text-accent" strokeWidth={1.75} />
+              <FileText className="mt-0.5 size-4 shrink-0 text-ink-3 group-hover:text-ink" strokeWidth={1.75} />
               <span className="min-w-0">
                 <span className="block truncate text-[13.5px] leading-5">{d.title}</span>
-                <span className="block text-xs tabular-nums text-ink-3">
+                <span className="block font-mono text-[11px] text-ink-3">
                   {d.pages} pages · {d.chunks} passages
                 </span>
               </span>
