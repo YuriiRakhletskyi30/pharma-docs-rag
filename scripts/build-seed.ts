@@ -7,7 +7,7 @@ import { preparePdf } from '@/lib/rag/ingest';
 const out = [];
 for (const { title, setId } of labels) {
   const bytes = new Uint8Array(await readFile(`data/seed/labels/${setId}.pdf`));
-  const { pages, chunks } = await preparePdf(title, bytes, true);
+  const { pages, chunks } = await preparePdf(title, bytes, { withEmbeddings: true });
   const rounded = chunks.map((c) => ({
     ...c,
     embedding: c.embedding!.map((v) => Math.round(v * 1e6) / 1e6),

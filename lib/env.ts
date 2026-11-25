@@ -8,7 +8,13 @@ const schema = z.object({
   // without it the app runs full-text search only, no embeddings or rerank
   VOYAGE_API_KEY: z.string().optional(),
   LOG_LEVEL: z.string().default('info'),
+  // Uploaded PDFs become sources for every user, so uploads are off unless turned on (the local setup turns them on).
+  ALLOW_UPLOADS: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 export const env = schema.parse(process.env);
 export const hasVoyage = Boolean(env.VOYAGE_API_KEY);
+export const allowUploads = env.ALLOW_UPLOADS;

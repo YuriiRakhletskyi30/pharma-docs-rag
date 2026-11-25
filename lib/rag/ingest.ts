@@ -5,6 +5,8 @@ import { chunkPages } from './chunk';
 import { embedDocuments, embeddingText } from './embed';
 import { pdfPages, skipFrontMatter } from './pdf';
 
+export { PageLimitError } from './pdf';
+
 export type PreparedChunk = {
   page: number;
   heading: string | null;
@@ -13,8 +15,12 @@ export type PreparedChunk = {
 };
 
 /** Parse + chunk + (optionally) embed. No DB writes, so the seed builder can reuse it. */
-export async function preparePdf(title: string, bytes: Uint8Array, withEmbeddings = hasVoyage) {
-  const pages = await pdfPages(bytes);
+export async function preparePdf(
+  title: string,
+  bytes: Uint8Array,
+  { withEmbeddings = hasVoyage, maxPages = Infinity }: { withEmbeddings?: boolean; maxPages?: number } = {},
+) {
+  const pages = await pdfPages(bytes, maxPages);
   const parts = chunkPages(skipFrontMatter(pages));
   const vectors = withEmbeddings
     ? await embedDocuments(parts.map((c) => embeddingText({ context: title, ...c })))

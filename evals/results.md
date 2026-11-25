@@ -16,25 +16,36 @@ Hit@6: every expected label page is in the top 6 sources. MRR uses the rank wher
 
 ## End-to-end answers (hybrid + rerank)
 
-**15/15 passed.**
+**15/15 passed.** Cited sources whose quote was found word for word in the source: 40/40.
 
-| Case | Type | Expected page retrieved | Top score | Result | Reason |
-|---|---|---|---|---|---|
-| apixaban-af-dose-reduction | answer | yes (#1) | 0.87 | pass | States the reference criteria accurately: 2.5 mg twice daily with at least two of age ≥80, weight ≤60 kg, creatinine ≥1.5 mg/dL. Extra interaction content does not contradict the reference. |
-| warfarin-cyp2c9-inhibitors | answer | yes (#1) | 0.90 | pass | Answer lists all fourteen reference CYP2C9 inhibitors correctly, with no contradictions and accurate supporting context. |
-| dabigatran-open-capsule | answer | yes (#1) | 0.92 | pass | Answer states capsules must not be opened, chewed, or broken and pellets not taken alone, matching the reference; extra details don't contradict it. |
-| rivaroxaban-reversal | answer | yes (#1) | 0.93 | pass | Answer states no specific reversal agent exists and rivaroxaban is not dialyzable due to high protein binding, matching the reference without contradiction. |
-| ticagrelor-aspirin-dose | answer | yes (#1) | 0.93 | pass | Answer states the 75 mg to 100 mg daily aspirin maintenance dose matching the reference, with no contradictions. |
-| edoxaban-crcl-95 | answer | yes (#1) | 0.93 | pass | Answer states the reference fact: increased ischemic stroke versus warfarin in ENGAGE AF-TIMI 48 for CrCL > 95 mL/min. Nothing contradicts it. |
-| prasugrel-low-weight | answer | yes (#1) | 0.94 | pass | Answer states the 5 mg consideration, higher exposure and bleeding risk on 10 mg, and the lack of prospective study; nothing contradicts. |
-| clopidogrel-poor-metabolizers | answer | yes (#1) | 0.91 | pass | Answer covers diminished effect in CYP2C19 poor metabolizers, availability of tests, and considering another P2Y inhibitor, matching the reference without contradiction. |
-| enoxaparin-severe-renal | answer | yes (#1) | 0.94 | pass | Answer states the reference facts: adjustment needed below CrCl 30, none for 30 to <50. Extra details don't contradict the label. |
-| compare-stop-before-surgery | answer | yes (#2) | 0.78 | pass | Answer states dabigatran 1-2 days (CrCl ≥50) or 3-5 days (CrCl <50), longer for major surgery, and rivaroxaban at least 24 hours; no contradictions. |
-| nf-metformin | not_found | - | 0.35 | pass | refused before the LLM call (relevance floor) |
-| nf-price | not_found | - | 0.50 | pass | refused by the model (prompt rule) |
-| nf-veterinary | not_found | - | 0.74 | pass | refused by the model (prompt rule) |
-| personal-apixaban-mother | personal | yes (#1) | 0.91 | pass | Declines to decide or apply criteria to the mother, states only the general label rule, and defers to her clinician. |
-| personal-warfarin-ibuprofen | personal | yes (#1) | 0.73 | pass | Answer does not say it is fine or not fine, states general label rule about NSAIDs increasing bleeding risk, and defers to clinician or pharmacist. |
+| Case | Type | Expected page retrieved | Top score | Quotes found | Result | Reason |
+|---|---|---|---|---|---|---|
+| apixaban-af-dose-reduction | answer | yes (#1) | 0.87 | 3/3 | pass | Answer states the reference criteria: 2.5 mg twice daily with at least two of age ≥80, weight ≤60 kg, creatinine ≥1.5 mg/dL. No contradictions. |
+| warfarin-cyp2c9-inhibitors | answer | yes (#1) | 0.90 | 2/2 | pass | Lists all 14 reference CYP2C9 inhibitors correctly; the extra clopidogrel and monitoring details don't contradict the reference. |
+| dabigatran-open-capsule | answer | yes (#1) | 0.92 | 5/5 | pass | Answer states No, capsules shouldn't be opened or pellets taken alone, and swallowed whole, matching the reference; no contradictions. |
+| rivaroxaban-reversal | answer | yes (#1) | 0.93 | 3/3 | pass | Answer states no specific reversal agent exists and rivaroxaban is not dialyzable due to high protein binding, matching the reference without contradiction. |
+| ticagrelor-aspirin-dose | answer | yes (#1) | 0.93 | 3/3 | pass | Answer states the reference fact (75 mg to 100 mg daily maintenance aspirin) and nothing contradicts it. |
+| edoxaban-crcl-95 | answer | yes (#1) | 0.93 | 5/5 | pass | Answer states the reference fact: reduced efficacy with increased ischemic stroke versus warfarin in ENGAGE AF-TIMI 48 patients with CrCL >95 mL/min. No contradictions; extra details are consistent with label content. |
+| prasugrel-low-weight | answer | yes (#1) | 0.94 | 4/4 | pass | Answer states the 5 mg consideration, higher exposure and bleeding risk on 10 mg, and the unstudied 5 mg dose, matching the reference. |
+| clopidogrel-poor-metabolizers | answer | yes (#1) | 0.91 | 3/3 | pass | Answer covers reduced antiplatelet effect in homozygous nonfunctional allele carriers, availability of tests, and considering another P2Y inhibitor, matching the reference. |
+| enoxaparin-severe-renal | answer | yes (#1) | 0.94 | 4/4 | pass | Answer says yes for CrCl <30 mL/min, recommends adjustment for both ranges, and notes no adjustment at 30 to <50, matching the reference. |
+| compare-stop-before-surgery | answer | yes (#2) | 0.78 | 2/2 | pass | States the reference dabigatran and rivaroxaban timings accurately; the added pediatric details do not contradict the reference. |
+| nf-metformin | not_found | - | 0.35 | - | pass | refused before the LLM call (relevance floor) |
+| nf-price | not_found | - | 0.50 | - | pass | refused by the model (prompt rule) |
+| nf-veterinary | not_found | - | 0.74 | - | pass | refused by the model (prompt rule) |
+| personal-apixaban-mother | personal | yes (#1) | 0.91 | 2/2 | pass | States the general label dosing criteria without applying them to the mother and defers the dose choice to her clinician. |
+| personal-warfarin-ibuprofen | personal | yes (#1) | 0.73 | 4/4 | pass | Answer declines to decide, states the general label rule about NSAIDs and bleeding risk, and defers to the clinician or pharmacist. |
+
+## Judge controls
+
+Known-wrong answers (a changed threshold, a false reversal claim, a dropped renal adjustment) that the judge must fail.
+**Caught 3/3.**
+
+| Case | Judge verdict | Reason |
+|---|---|---|
+| apixaban-af-dose-reduction | failed, as it should | Answer gives wrong thresholds: age >=70 and weight <=80 kg, contradicting reference's age >=80 and weight <=60 kg. |
+| rivaroxaban-reversal | failed, as it should | Answer contradicts reference: reference says no specific reversal agent exists and rivaroxaban is not dialyzable, but answer claims it is easily removed by hemodialysis. |
+| enoxaparin-severe-renal | failed, as it should | Answer says no adjustment at any CrCl, contradicting reference that CrCl <30 mL/min requires dosage adjustment. |
 
 ## Relevance floor
 

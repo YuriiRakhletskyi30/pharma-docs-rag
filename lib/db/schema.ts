@@ -49,16 +49,24 @@ export const chunks = pgTable(
   ],
 );
 
-export const messages = pgTable('messages', {
-  id: serial('id').primaryKey(),
-  conversationId: text('conversation_id').notNull(),
-  role: text('role', { enum: ['user', 'assistant'] }).notNull(),
-  content: text('content').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('messages_conversation_idx').on(t.conversationId)]);
+// owner: random id from an httpOnly cookie. A chat is read and deleted by (owner, conversation id),
+// so knowing a conversation id alone gives nothing.
+export const messages = pgTable(
+  'messages',
+  {
+    id: serial('id').primaryKey(),
+    owner: text('owner').notNull().default(''),
+    conversationId: text('conversation_id').notNull(),
+    role: text('role', { enum: ['user', 'assistant'] }).notNull(),
+    content: text('content').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [index('messages_owner_conversation_idx').on(t.owner, t.conversationId)],
+);
 
 export const traces = pgTable('traces', {
   id: serial('id').primaryKey(),
+  owner: text('owner').notNull().default(''),
   requestId: text('request_id').notNull(),
   conversationId: text('conversation_id').notNull(),
   question: text('question').notNull(),

@@ -45,6 +45,12 @@ describe('chunkPages', () => {
     expect(chunks).toHaveLength(1);
   });
 
+  it('gives a short section that runs into the next heading the heading it started under', () => {
+    const chunks = chunkPages([`7 DRUG INTERACTIONS\nShort intro.\n7.1 Strong Inhibitors\n${filler(10)}`]);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].heading).toBe('7 DRUG INTERACTIONS');
+  });
+
   it('treats the boxed warning as a heading', () => {
     expect(chunkPages(['WARNING: SPINAL/EPIDURAL HEMATOMA\nbody'])[0].heading).toBe('WARNING: SPINAL/EPIDURAL HEMATOMA');
   });
@@ -56,6 +62,17 @@ describe('chunkPages', () => {
     const lastLine = chunks[0].content.split('\n').at(-1)!;
     expect(chunks[1].content.startsWith(chunks[0].content.split('\n').at(-2)!)).toBe(true);
     expect(chunks[1].content).toContain(lastLine);
+  });
+
+  it('keeps the cap on pages with very long lines or no line breaks', () => {
+    const long = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(' ');
+    const pages = [Array.from({ length: 4 }, () => long(250)).join('\n'), long(1500)];
+    const chunks = chunkPages(pages);
+    for (const c of chunks) expect(c.content.length).toBeLessThanOrEqual(1800);
+    // nothing lost: every word of the second page is in some chunk on page 2
+    const page2 = chunks.filter((c) => c.page === 2).map((c) => c.content).join(' ');
+    expect(page2).toContain('word0 ');
+    expect(page2).toContain('word1499');
   });
 
   it('skips empty pages', () => {

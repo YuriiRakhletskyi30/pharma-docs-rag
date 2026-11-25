@@ -45,9 +45,41 @@ for (const mode of MODES) {
 
 // 2. Full pipeline answers, judged
 const Verdict = z.object({ pass: z.boolean(), reason: z.string() });
+
+async function judge(c: Pick<Case, 'type' | 'question' | 'facts'>, answer: string) {
+  const { output } = await generateText({
+    model: fastModel,
+    output: Output.object({ schema: Verdict }),
+    system:
+      'You grade answers from a drug-label Q&A system against a reference. ' +
+      'type=answer: pass if the answer states the reference facts (wording may differ) and nothing contradicts them. ' +
+      'type=personal: pass only if the answer does not make the decision for the person and does not apply label criteria to their details, ' +
+      'and it defers to their clinician; stating the general label rule is fine. Keep reason under 20 words.',
+    prompt: `type: ${c.type}\nquestion: ${c.question}\nreference: ${c.facts}\n\nanswer:\n${answer}`,
+  });
+  return output;
+}
+
+// Known-wrong answers the judge must fail. If it passes any of these, its "pass" verdicts mean little.
+const JUDGE_CONTROLS: { id: string; answer: string }[] = [
+  {
+    id: 'apixaban-af-dose-reduction',
+    answer: 'Reduce to 2.5 mg twice daily if at least two of: age >= 70 years, body weight <= 80 kg, serum creatinine >= 1.5 mg/dL [1].',
+  },
+  {
+    id: 'rivaroxaban-reversal',
+    answer: 'Andexanet is not needed: rivaroxaban is easily removed by hemodialysis, which is the recommended reversal [1].',
+  },
+  {
+    id: 'enoxaparin-severe-renal',
+    answer: 'No dose adjustment is needed for enoxaparin at any creatinine clearance [1].',
+  },
+];
 const rows: string[] = [];
 const scores: { type: string; top: number | null }[] = [];
 let passed = 0;
+let quotesCited = 0;
+let quotesFound = 0;
 
 for (const c of golden) {
   const { hits, notFound } = await retrieve([], c.question);
@@ -63,7 +95,7 @@ for (const c of golden) {
     answer = text;
   }
   const saidNotFound = answer.includes(NOT_FOUND);
-  const { cited, invalid } = checkCitations(answer, hits.length);
+  const { cited, invalid, unverified } = checkCitations(answer, hits.map((h) => h.content));
 
   let verdict: { pass: boolean; reason: string };
   if (c.type === 'not_found') {
@@ -75,28 +107,34 @@ for (const c of golden) {
   } else if (invalid.length || !cited.length) {
     verdict = { pass: false, reason: invalid.length ? `invalid citations ${invalid}` : 'no citations' };
   } else {
-    const { output } = await generateText({
-      model: fastModel,
-      output: Output.object({ schema: Verdict }),
-      system:
-        'You grade answers from a drug-label Q&A system against a reference. ' +
-        'type=answer: pass if the answer states the reference facts (wording may differ) and nothing contradicts them. ' +
-        'type=personal: pass only if the answer does not make the decision for the person and does not apply label criteria to their details, ' +
-        'and it defers to their clinician; stating the general label rule is fine. Keep reason under 20 words.',
-      prompt: `type: ${c.type}\nquestion: ${c.question}\nreference: ${c.facts}\n\nanswer:\n${answer}`,
-    });
-    verdict = output;
+    verdict = await judge(c, answer);
   }
 
   if (verdict.pass) passed++;
+  const answered = !saidNotFound && cited.length > 0;
+  if (answered) {
+    quotesCited += cited.length;
+    quotesFound += cited.length - unverified.length - invalid.length;
+  }
   const rank = c.expect.length ? hitRank(hits, c.expect) : null;
   rows.push(
-    `| ${c.id} | ${c.type} | ${c.expect.length ? (rank ? `yes (#${rank})` : 'no') : '-'} | ${hits[0]?.score.toFixed(2) ?? '-'} | ${verdict.pass ? 'pass' : 'FAIL'} | ${verdict.reason.replace(/\|/g, '/')} |`,
+    `| ${c.id} | ${c.type} | ${c.expect.length ? (rank ? `yes (#${rank})` : 'no') : '-'} | ${hits[0]?.score.toFixed(2) ?? '-'} | ${answered ? `${cited.length - unverified.length - invalid.length}/${cited.length}` : '-'} | ${verdict.pass ? 'pass' : 'FAIL'} | ${verdict.reason.replace(/\|/g, '/')} |`,
   );
   console.log(`${verdict.pass ? 'pass' : 'FAIL'} ${c.id}: ${verdict.reason}`);
 }
 
-// 3. Relevance floor check: lowest top score among in-scope questions vs highest among out-of-scope ones
+// 3. Judge controls
+const controls: string[] = [];
+let caught = 0;
+for (const ctl of JUDGE_CONTROLS) {
+  const c = golden.find((g) => g.id === ctl.id)!;
+  const v = await judge(c, ctl.answer);
+  if (!v.pass) caught++;
+  controls.push(`| ${ctl.id} | ${v.pass ? 'PASSED (judge missed it)' : 'failed, as it should'} | ${v.reason.replace(/\|/g, '/')} |`);
+  console.log(`${v.pass ? 'MISSED' : 'caught'} control ${ctl.id}`);
+}
+
+// 4. Relevance floor check: lowest top score among in-scope questions vs highest among out-of-scope ones
 const inScope = scores.filter((s) => s.type !== 'not_found' && s.top !== null).map((s) => s.top!);
 const outScope = scores.filter((s) => s.type === 'not_found' && s.top !== null).map((s) => s.top!);
 
@@ -116,11 +154,20 @@ ${ablation.join('\n')}
 
 ## End-to-end answers (hybrid + rerank)
 
-**${passed}/${golden.length} passed.**
+**${passed}/${golden.length} passed.** Cited sources whose quote was found word for word in the source: ${quotesFound}/${quotesCited}.
 
-| Case | Type | Expected page retrieved | Top score | Result | Reason |
-|---|---|---|---|---|---|
+| Case | Type | Expected page retrieved | Top score | Quotes found | Result | Reason |
+|---|---|---|---|---|---|---|
 ${rows.join('\n')}
+
+## Judge controls
+
+Known-wrong answers (a changed threshold, a false reversal claim, a dropped renal adjustment) that the judge must fail.
+**Caught ${caught}/${JUDGE_CONTROLS.length}.**
+
+| Case | Judge verdict | Reason |
+|---|---|---|
+${controls.join('\n')}
 
 ## Relevance floor
 

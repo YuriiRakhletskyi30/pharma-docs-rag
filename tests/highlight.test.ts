@@ -23,6 +23,11 @@ describe('passageRun', () => {
     expect(passageRun(['Unrelated text here', 'More unrelated text'], passage).size).toBe(0);
   });
 
+  it('breaks the run after more than two short non-matching items', () => {
+    const items = ['Administer 60 mg of BRILINTA twice daily.', 'a1', 'b2', 'c3', 'Initiate treatment with a 180 mg loading dose of BRILINTA.'];
+    expect([...passageRun(items, passage)]).toEqual([4]);
+  });
+
   it('keeps short items such as doses inside the run', () => {
     const items = ['Administer 60 mg of BRILINTA', ' ', 'twice daily.'];
     expect([...passageRun(items, passage)]).toEqual([0, 2]);

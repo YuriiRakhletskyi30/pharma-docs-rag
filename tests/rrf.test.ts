@@ -12,6 +12,7 @@ describe('rrf', () => {
 
   it('uses 1/(k + rank) with 1-based rank', () => {
     expect(rrf([[7]], 60)[0].score).toBeCloseTo(1 / 61);
+    expect(rrf([[7]])[0].score).toBeCloseTo(1 / 61); // default k is the standard 60
   });
 
   it('handles empty lists', () => {

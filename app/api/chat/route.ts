@@ -1,80 +1,107 @@
 import { createUIMessageStream, createUIMessageStreamResponse, streamText, toUIMessageStream } from 'ai';
-import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { db } from '@/lib/db/client';
-import { hasVoyage } from '@/lib/env';
-import { messages, traces } from '@/lib/db/schema';
+import { loadHistory, saveTurn, writeTrace, type TraceInput } from '@/lib/chat-store';
+import { MAX_QUESTION_CHARS } from '@/lib/constants';
 import { log } from '@/lib/log';
-import { checkCitations } from '@/lib/rag/citations';
+import { ownerCookie, readOwner } from '@/lib/owner';
+import { checkCitations, classifyAnswer, type Outcome } from '@/lib/rag/citations';
 import { answerModel } from '@/lib/rag/models';
 import { buildMessages, NOT_FOUND, SYSTEM_PROMPT, type Turn } from '@/lib/rag/prompt';
-import { retrieve } from '@/lib/rag/retrieve';
+import { retrieve, toSourceRefs } from '@/lib/rag/retrieve';
+import type { Hit } from '@/lib/rag/search';
 import type { ChatMessage, SourceRef } from '@/lib/types';
 
-const MAX_QUESTION = 1000;
-const HISTORY_TURNS = 6;
+const MAX_BODY = 32 * 1024;
+const MAX_OUTPUT_TOKENS = 4000; // a safety net; the prompt keeps answers short (most use under 1500)
 
+// The client sends only the new question; the history comes from the database.
 const Body = z.object({
   id: z.string().min(1).max(100),
   messages: z
-    .array(z.object({ role: z.string(), parts: z.array(z.object({ type: z.string(), text: z.string().optional() })) }))
-    .min(1),
+    .array(
+      z.object({
+        role: z.string(),
+        parts: z
+          .array(z.object({ type: z.string(), text: z.string().max(4 * MAX_QUESTION_CHARS).optional() }))
+          .max(20),
+      }),
+    )
+    .min(1)
+    .max(1),
 });
 
+type Usage = { inputTokens?: number; outputTokens?: number };
+
 export async function POST(req: Request) {
+  const length = Number(req.headers.get('content-length'));
+  if (!length) return Response.json({ error: 'Content-Length is required' }, { status: 411 });
+  if (length > MAX_BODY) return Response.json({ error: 'Request is too large' }, { status: 413 });
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: 'Invalid request' }, { status: 400 });
 
-  const conversationId = parsed.data.id;
-  const last = parsed.data.messages.at(-1)!;
+  const last = parsed.data.messages[0];
   const question = last.parts.map((p) => (p.type === 'text' ? p.text ?? '' : '')).join('').trim();
   if (last.role !== 'user' || !question) return Response.json({ error: 'Empty question' }, { status: 400 });
-  if (question.length > MAX_QUESTION) {
-    return Response.json({ error: `Question is longer than ${MAX_QUESTION} characters` }, { status: 400 });
+  if (question.length > MAX_QUESTION_CHARS) {
+    return Response.json({ error: `Question is longer than ${MAX_QUESTION_CHARS} characters` }, { status: 400 });
   }
 
+  // first question from this browser: make an owner id and hand it back as a cookie
+  const known = readOwner(req);
+  const owner = known ?? crypto.randomUUID();
+  const headers: HeadersInit = known ? {} : { 'set-cookie': ownerCookie(owner, req) };
+
+  const conversationId = parsed.data.id;
   const requestId = crypto.randomUUID();
   const started = Date.now();
   const rlog = log.child({ requestId, conversationId });
 
-  const history: Turn[] = (
-    await db
-      .select({ role: messages.role, content: messages.content })
-      .from(messages)
-      .where(eq(messages.conversationId, conversationId))
-      .orderBy(desc(messages.id))
-      .limit(HISTORY_TURNS)
-  ).reverse();
-  await db.insert(messages).values({ conversationId, role: 'user', content: question });
+  let searchQuery = question;
+  let mode: TraceInput['mode'] = 'hybrid_rerank';
+  let sources: SourceRef[] = [];
 
-  const { searchQuery, hits, notFound } = await retrieve(history, question);
-  const sources: SourceRef[] = hits.map((h, i) => ({
-    n: i + 1,
-    documentId: h.documentId,
-    title: h.title,
-    page: h.page,
-    heading: h.heading,
-    content: h.content,
-    score: h.score,
-  }));
-
-  const finish = async (answer: string, outcome: string, usage?: { inputTokens?: number; outputTokens?: number }) => {
+  // Every request leaves a trace, including the ones that fail or are stopped.
+  const trace = async (outcome: Outcome, extra: { model?: string; usage?: Usage } = {}) => {
     const latencyMs = Date.now() - started;
-    await db.insert(messages).values({ conversationId, role: 'assistant', content: answer });
-    await db.insert(traces).values({
+    rlog.info({ outcome, latencyMs, searchQuery, topScore: sources[0]?.score, usage: extra.usage }, 'chat done');
+    await writeTrace({
+      owner,
       requestId,
       conversationId,
       question,
       searchQuery,
-      mode: hasVoyage ? 'hybrid_rerank' : 'fulltext',
+      mode,
       retrieved: sources.map(({ n, documentId, page, heading, score }) => ({ n, documentId, page, heading, score })),
-      model: outcome === 'answered' ? answerModel.modelId : null,
-      inputTokens: usage?.inputTokens ?? null,
-      outputTokens: usage?.outputTokens ?? null,
+      model: extra.model ?? null,
+      inputTokens: extra.usage?.inputTokens ?? null,
+      outputTokens: extra.usage?.outputTokens ?? null,
       latencyMs,
       outcome,
-    });
-    rlog.info({ outcome, latencyMs, searchQuery, topScore: hits[0]?.score, usage }, 'chat answered');
+    }).catch((err) => rlog.error({ err }, 'trace write failed'));
+  };
+  const failed = async (err: unknown, outcome: 'error' | 'aborted') => {
+    if (outcome === 'error') rlog.error({ err }, 'chat failed');
+    await trace(outcome);
+  };
+
+  let history: Turn[];
+  let hits: Hit[];
+  let notFound: boolean;
+  try {
+    history = await loadHistory(owner, conversationId);
+    ({ searchQuery, hits, notFound, mode } = await retrieve(history, question, req.signal));
+  } catch (err) {
+    await failed(err, req.signal.aborted ? 'aborted' : 'error');
+    return Response.json(
+      { error: 'Something went wrong while searching the labels. Please try again.' },
+      { status: 500, headers },
+    );
+  }
+  sources = toSourceRefs(hits);
+
+  const finish = async (answer: string, outcome: Outcome, extra?: { model?: string; usage?: Usage }) => {
+    await saveTurn(owner, conversationId, question, answer);
+    await trace(outcome, extra);
   };
 
   const stream = createUIMessageStream<ChatMessage>({
@@ -92,23 +119,37 @@ export async function POST(req: Request) {
         return;
       }
 
+      let errored = false; // a provider error can still end the stream with partial text: don't save that as an answer
       const result = streamText({
         model: answerModel,
         system: SYSTEM_PROMPT,
         messages: buildMessages(history, question, hits),
-        onEnd: async ({ text, totalUsage }) => {
-          const { invalid } = checkCitations(text, sources.length);
-          writer.write({ type: 'data-citations', id: 'citations', data: { invalid } });
-          await finish(text, invalid.length ? 'answered_invalid_citations' : 'answered', totalUsage);
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        abortSignal: req.signal,
+        timeout: { totalMs: 90_000, chunkMs: 20_000 },
+        onEnd: async ({ text, totalUsage, finishReason }) => {
+          if (errored) return;
+          const refused = text.trim() === NOT_FOUND;
+          const { cited, invalid, unverified } = checkCitations(text, sources.map((s) => s.content));
+          const cutOff = finishReason === 'length';
+          const uncited = !refused && cited.length === 0;
+          writer.write({ type: 'data-citations', id: 'citations', data: { invalid, unverified, cutOff, uncited } });
+          const outcome = classifyAnswer({ refused, invalid, cutOff, uncited, unverified });
+          await finish(text, outcome, { model: answerModel.modelId, usage: totalUsage });
+        },
+        onAbort: () => failed(null, 'aborted'),
+        onError: ({ error }) => {
+          errored = true;
+          return failed(error, 'error');
         },
       });
       writer.merge(toUIMessageStream({ stream: result.stream, sendStart: false }));
     },
     onError: (error) => {
-      rlog.error({ err: error }, 'chat failed');
+      rlog.error({ err: error }, 'chat stream failed');
       return 'Something went wrong while answering. Please try again.';
     },
   });
 
-  return createUIMessageStreamResponse({ stream });
+  return createUIMessageStreamResponse({ stream, headers });
 }

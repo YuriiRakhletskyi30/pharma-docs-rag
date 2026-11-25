@@ -1,7 +1,13 @@
 import { extractText, getDocumentProxy } from 'unpdf';
 
-export async function pdfPages(bytes: Uint8Array): Promise<string[]> {
+export class PageLimitError extends Error {
+  name = 'PageLimitError';
+}
+
+/** Text per page. The page count is checked before any text is extracted, which is the slow part. */
+export async function pdfPages(bytes: Uint8Array, maxPages = Infinity): Promise<string[]> {
   const pdf = await getDocumentProxy(bytes);
+  if (pdf.numPages > maxPages) throw new PageLimitError(`${pdf.numPages} pages`);
   const { text } = await extractText(pdf);
   return text.map((t) => t.replaceAll('\0', '')); // Postgres text cannot store NUL bytes
 }
