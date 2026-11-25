@@ -3,7 +3,7 @@
 Ask questions about FDA prescribing labels and get answers that cite the label page they came from.
 Seeded with 9 anticoagulant and antiplatelet labels from DailyMed; you can upload more PDFs when uploads are on (`ALLOW_UPLOADS=true`, already set in `.env.example`).
 
-No API keys at hand? The Loom video and the screenshots below show the full flow.
+No API keys at hand? The screenshots below show the full flow.
 
 ![Answer with citations and the cited PDF page](docs/screenshots/03-source-panel.png)
 
@@ -114,7 +114,7 @@ One Next.js app. `lib/rag/*` holds the pipeline as small functions (`pdf`, `chun
 - Last 6 turns kept on the server, keyed by the chat id and an owner id. The owner id is a random value in an httpOnly cookie the server sets on the first question, so a chat id copied from someone's browser reads nothing. Deleting a chat in the sidebar deletes its messages and traces on the server too. The chat list itself lives in the browser (`localStorage`): with no login, a server-side list would show every visitor's questions to everyone. From turn 2, Haiku rewrites the question into a standalone search query ("and on dialysis?" becomes "apixaban dosing ... dialysis").
 
 **Guardrails**
-- Relevance floor: if the best rerank score is below 0.4, reply "not found" without calling the LLM. On the eval set in-scope questions scored 0.73 or higher, but one out-of-scope question scored 0.74, so the floor only catches clear misses; the prompt rule is the real guard (2 of 3 out-of-scope refusals came from it).
+- Relevance floor: if the best rerank score is below 0.4, reply "not found" without calling the LLM. On the eval set in-scope questions scored 0.73 or higher, but one out-of-scope question scored 0.74, so the floor only catches clear misses; the prompt rule is the backstop (on the eval set the floor refused 3 of the 5 out-of-scope questions, the prompt rule the other 2).
 - Quoted citations: the model cites as `[n "4-10 words copied from source n"]`. The server checks that every `n` was sent (invalid ones are struck through) and that each quote appears word for word in source `n`, ignoring case, spacing and line-break hyphens but not digits, decimal points or signs ("25 mg" does not match "2.5 mg", ">30" does not match "<30"). Answers cut off by the token limit or with no citation at all get their own warning. A missing or unmatched quote marks that chip amber, adds a warning under the answer, and is logged as `answered_unverified_quotes`. The UI shows only the number; the quote is in the tooltip. This proves the words are in the source, not that they back the sentence.
 - Source text and titles are escaped so a PDF or filename cannot close the `<source>` block or fake a new one.
 - Personal treatment questions ("should my mother take 2.5 or 5 mg?"): the answer states the general label rule, does not apply it to the person, and defers to their clinician. First version applied the criteria to the mother; the prompt was tightened and the eval covers it.
@@ -131,7 +131,7 @@ One Next.js app. `lib/rag/*` holds the pipeline as small functions (`pdf`, `chun
 
 ## Key technical decisions
 
-- One Next.js app instead of UI + separate API service: less plumbing for a 10-hour build; `lib/rag` is the seam to split along later.
+- One Next.js app instead of UI + separate API service: less plumbing for a build planned at about 10 hours; `lib/rag` is the seam to split along later.
 - Docker image: multi-stage, production dependencies only, runs as the `node` user with `next start` as PID 1; Node pinned by version and digest. Not Next standalone output: that skips files the release step reads (seed data, migrations), so the image is larger (~800 MB) but has no tracing surprises.
 - Migrations and seeding are a separate release step under a Postgres advisory lock: copies started together wait instead of racing (checked by running two at once on an empty database).
 - PDFs stored in Postgres (bytea): one volume holds all state.
@@ -165,7 +165,7 @@ Followed:
 - Questions about the library ("which labels are loaded?") are answered from the documents table, not by search or the model.
 - `/api/health` checks the database; compose uses it as the app healthcheck. `next start` runs as PID 1 so it gets SIGTERM.
 - Error and not-found pages; CI runs typecheck, lint, tests and `next build`.
-- Small focused modules; pure functions unit-tested; comments only where the reason is not obvious; known shortcuts marked `shortcut:` with their limit.
+- Small focused modules; pure functions unit-tested; comments only where the reason is not obvious; known shortcuts and their limits listed under Known limits.
 - pnpm `minimumReleaseAge` of 1 day (supply-chain guard); lockfile committed.
 - Clean-clone check: `git clone` + `docker compose up --build` on an empty database.
 

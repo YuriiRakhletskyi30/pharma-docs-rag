@@ -10,7 +10,6 @@ const schema = z.object({
   LOG_LEVEL: z.string().default('info'),
   // optional: server errors are also POSTed here (read in instrumentation.ts)
   ERROR_WEBHOOK_URL: z.url().optional(),
-  // Uploaded PDFs become sources for every user, so uploads are off unless turned on (the local setup turns them on).
   // Request limits per minute (questions) and per hour (uploads); see lib/rate-limit.ts
   QUESTIONS_PER_MIN_PER_CLIENT: z.coerce.number().int().positive().default(10),
   QUESTIONS_PER_MIN_TOTAL: z.coerce.number().int().positive().default(60),
@@ -20,6 +19,7 @@ const schema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+  // Uploaded PDFs become sources for every user, so uploads are off unless turned on (the local setup turns them on).
   ALLOW_UPLOADS: z
     .enum(['true', 'false'])
     .default('false')

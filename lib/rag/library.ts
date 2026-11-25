@@ -10,10 +10,22 @@ const HOW_MANY = /\bhow many (documents|labels|drugs|medications|files)\b/;
 const CONTENT_WORDS =
   /\b(interact\w*|dos(e|es|ing|age)|inhibit\w*|induc\w*|cyp\w*|renal|hepatic|kidney|liver|bleed\w*|surgery|warning\w*|contraindicat\w*|side effects?|adverse|pregnan\w*|reversal|overdose|as (an? )?\w+)\b/;
 
+// After the library phrase only filler may follow. Anything else ("...for patients on dialysis",
+// "...in a 2.5 mg tablet") makes it a clinical question that search has to answer.
+const FILLER =
+  /^((are|is|do you have|have you got|you have|we have|there|loaded|available|listed|included|covered|here|now|currently|in total|total|in (the|this) (app|library|system|database|tool)|please)\b\s*)*$/;
+
 export function isLibraryQuestion(question: string): boolean {
-  const q = question.toLowerCase().replace(/\s+/g, ' ').trim();
+  const q = question
+    .toLowerCase()
+    .replace(/[?.!]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (q.length > 120 || CONTENT_WORDS.test(q)) return false;
-  return ABOUT_LIBRARY.test(q) || LIST_REQUEST.test(q) || HOW_MANY.test(q);
+  return [ABOUT_LIBRARY, LIST_REQUEST, HOW_MANY].some((re) => {
+    const m = re.exec(q);
+    return m !== null && FILLER.test(q.slice(m.index + m[0].length).trim());
+  });
 }
 
 export function libraryAnswer(labels: { title: string; uploaded: boolean }[]): string {

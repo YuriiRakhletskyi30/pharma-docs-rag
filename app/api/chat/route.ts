@@ -111,8 +111,12 @@ export async function POST(req: Request) {
         writer.write({ type: 'text-delta', id: 'lib', delta: answer });
         writer.write({ type: 'text-end', id: 'lib' });
         writer.write({ type: 'finish' });
-        await saveTurn(owner, conversationId, question, answer);
-        await trace('library');
+        try {
+          await saveTurn(owner, conversationId, question, answer);
+          await trace('library');
+        } catch (err) {
+          await failed(err, 'error');
+        }
       },
     });
     return createUIMessageStreamResponse({ stream, headers });

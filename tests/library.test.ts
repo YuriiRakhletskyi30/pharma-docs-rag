@@ -11,6 +11,8 @@ describe('isLibraryQuestion', () => {
     'list the labels',
     'How many labels are loaded?',
     'what medications do you cover',
+    'Which drugs do you have in the library?',
+    'show me all the labels you have',
   ])('library: %s', (q) => expect(isLibraryQuestion(q)).toBe(true));
 
   it.each([
@@ -20,6 +22,9 @@ describe('isLibraryQuestion', () => {
     'Which drugs are listed in the warfarin label for bleeding risk?',
     'Do you have the dose of metformin?',
     'Can Pradaxa capsules be opened?',
+    'Which drugs do you have for patients on dialysis?',
+    'What drugs are there for stroke prevention in atrial fibrillation?',
+    'Which labels are available in a 2.5 mg tablet strength?',
   ])('content: %s', (q) => expect(isLibraryQuestion(q)).toBe(false));
 });
 
