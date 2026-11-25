@@ -1,13 +1,16 @@
 import { asc, count, eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/client';
 import { chunks, documents } from '@/lib/db/schema';
-import { allowUploads, hasVoyage } from '@/lib/env';
+import { allowUploads, env, hasVoyage } from '@/lib/env';
+import { readOwner } from '@/lib/owner';
+import { clientKey, createLimiter, tooMany } from '@/lib/rate-limit';
 import { log } from '@/lib/log';
 import { MAX_UPLOAD_MB, MAX_UPLOAD_PAGES, UPLOAD_PREFIX } from '@/lib/constants';
 import { PageLimitError, preparePdf, saveDocument } from '@/lib/rag/ingest';
 
 const MAX_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 const TOO_BIG = `PDF is larger than ${MAX_UPLOAD_MB} MB.`;
+const uploadsPerClient = createLimiter(env.UPLOADS_PER_HOUR_PER_CLIENT, 60 * 60_000);
 
 export async function GET() {
   const rows = await db
@@ -27,6 +30,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   if (!allowUploads) return Response.json({ error: 'Uploads are turned off on this server.' }, { status: 403 });
+  const wait = uploadsPerClient.hit(clientKey(req, readOwner(req), env.TRUST_PROXY));
+  if (wait) return tooMany(wait, 'uploads');
   // reject big bodies before formData() reads them into memory (multipart adds a little over the file size)
   const declared = Number(req.headers.get('content-length'));
   if (!declared) return Response.json({ error: 'Content-Length is required.' }, { status: 411 });

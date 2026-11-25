@@ -2,9 +2,11 @@ import { createUIMessageStream, createUIMessageStreamResponse, streamText, toUIM
 import { z } from 'zod';
 import { loadHistory, saveTurn, writeTrace, type TraceInput } from '@/lib/chat-store';
 import { MAX_QUESTION_CHARS } from '@/lib/constants';
+import { env } from '@/lib/env';
 import { listLabels } from '@/lib/documents';
 import { log } from '@/lib/log';
 import { ownerCookie, readOwner } from '@/lib/owner';
+import { clientKey, createLimiter, tooMany } from '@/lib/rate-limit';
 import { checkCitations, classifyAnswer, type Outcome } from '@/lib/rag/citations';
 import { isLibraryQuestion, libraryAnswer } from '@/lib/rag/library';
 import { answerModel } from '@/lib/rag/models';
@@ -34,6 +36,9 @@ const Body = z.object({
 
 type Usage = { inputTokens?: number; outputTokens?: number };
 
+const perClient = createLimiter(env.QUESTIONS_PER_MIN_PER_CLIENT, 60_000);
+const total = createLimiter(env.QUESTIONS_PER_MIN_TOTAL, 60_000);
+
 export async function POST(req: Request) {
   const length = Number(req.headers.get('content-length'));
   if (!length) return Response.json({ error: 'Content-Length is required' }, { status: 411 });
@@ -52,6 +57,10 @@ export async function POST(req: Request) {
   const known = readOwner(req);
   const owner = known ?? crypto.randomUUID();
   const headers: HeadersInit = known ? {} : { 'set-cookie': ownerCookie(owner, req) };
+
+  // checked before any paid call (rewrite, embeddings, rerank, answer)
+  const wait = perClient.hit(clientKey(req, known, env.TRUST_PROXY)) || total.hit('all');
+  if (wait) return tooMany(wait, 'questions', headers);
 
   const conversationId = parsed.data.id;
   const requestId = crypto.randomUUID();

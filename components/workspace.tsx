@@ -20,6 +20,16 @@ const EXAMPLES = [
 ];
 
 type Selected = { messageId: string; source: SourceRef };
+
+/** The server's own reason ("Too many questions. Try again in 40 s."), when the error carries one. */
+function serverMessage(error: Error): string | null {
+  try {
+    const body = JSON.parse(error.message);
+    return typeof body?.error === 'string' ? body.error : null;
+  } catch {
+    return null;
+  }
+}
 type DocsResponse = { documents: DocItem[]; semanticSearch: boolean; uploads: boolean };
 
 // Below lg the drawer and the source panel are full-screen layers (modal); from lg they sit in the layout.
@@ -300,7 +310,7 @@ export function Workspace() {
 
             {error && (
               <div className="flex items-center gap-3 rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-[14px] text-danger">
-                The answer failed to load.
+                {serverMessage(error) ?? 'The answer failed to load.'}
                 <button
                   type="button"
                   className="min-h-11 font-medium underline underline-offset-2 lg:min-h-0"

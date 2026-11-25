@@ -155,4 +155,30 @@ describe('POST /api/chat', () => {
     expect(two.status).toBe(400);
     expect(search.retrieve).not.toHaveBeenCalled();
   });
+
+  it('answers 429 with Retry-After once a client is over its limit, before any search', async () => {
+    vi.resetModules();
+    vi.stubEnv('QUESTIONS_PER_MIN_PER_CLIENT', '2');
+    const fresh = await import('@/app/api/chat/route');
+    models.answerModel = modelSaying('Ok [1 "No dose adjustment is recommended for patients"].');
+    const owner = 'dlqa_owner=0b0e4d47-9a51-4c38-9c5e-2f5f9c1d6a11';
+    const body = JSON.stringify({ id: 'c', messages: [{ role: 'user', parts: [{ type: 'text', text: 'Dose?' }] }] });
+    const send = () =>
+      fresh.POST(
+        new Request('http://localhost/api/chat', {
+          method: 'POST',
+          body,
+          headers: { 'content-length': String(body.length), cookie: owner },
+        }),
+      );
+    await (await send()).text();
+    await (await send()).text();
+    search.retrieve.mockClear();
+    const third = await send();
+    expect(third.status).toBe(429);
+    expect(Number(third.headers.get('retry-after'))).toBeGreaterThan(0);
+    expect((await third.json()).error).toMatch(/^Too many questions/);
+    expect(search.retrieve).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
 });
