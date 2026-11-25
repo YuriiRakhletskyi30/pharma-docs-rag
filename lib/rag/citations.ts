@@ -80,6 +80,13 @@ export function classifyAnswer(a: {
   return 'answered';
 }
 
-/** Citations the UI handles itself: a bare [n] after quotes are taken out, and one still being streamed. */
-export const BARE_CITATION = /\[(\d+)\]/;
+/** A citation still being streamed: the UI hides it until it closes. */
 export const PARTIAL_CITATION = /\[\d*(?:\s+["“][^"“”\]]*["”]?)?$/;
+
+/** Text split around bare [n] marks (quotes already taken out): strings stay text, numbers become chips. */
+export function splitCitations(text: string): (string | number)[] {
+  return text
+    .split(/(\[\d+\])/)
+    .filter((part) => part !== '')
+    .map((part) => (/^\[\d+\]$/.test(part) ? Number(part.slice(1, -1)) : part));
+}

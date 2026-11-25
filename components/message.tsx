@@ -2,7 +2,7 @@
 
 import { Children, isValidElement, cloneElement, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { BARE_CITATION, CITATION, citedNumbers, parseCitations, PARTIAL_CITATION } from '@/lib/rag/citations';
+import { CITATION, citedNumbers, parseCitations, PARTIAL_CITATION, splitCitations } from '@/lib/rag/citations';
 import { NOT_FOUND } from '@/lib/rag/prompt';
 import type { ChatMessage, SourceRef } from '@/lib/types';
 import { sourceLabel } from './cite';
@@ -114,10 +114,9 @@ export function Message({ message, selectedN, onCite, onExample }: Props) {
   const withChips = (children: ReactNode): ReactNode =>
     Children.map(children, (child) => {
       if (typeof child === 'string') {
-        return child.split(new RegExp(`(${BARE_CITATION.source})`, 'g')).map((part, i) => {
-          const m = part.match(new RegExp(`^${BARE_CITATION.source}$`));
-          return m ? chip(Number(m[1]), quotes.get(Number(m[1])) ?? undefined, `${i}`) : part;
-        });
+        return splitCitations(child).map((part, i) =>
+          typeof part === 'number' ? chip(part, quotes.get(part) ?? undefined, `${i}`) : part,
+        );
       }
       if (isValidElement<{ children?: ReactNode }>(child) && child.props.children) {
         return cloneElement(child, undefined, withChips(child.props.children));

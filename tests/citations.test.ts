@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { checkCitations, citedNumbers, classifyAnswer, parseCitations, stripCitations } from '@/lib/rag/citations';
+import {
+  checkCitations,
+  citedNumbers,
+  classifyAnswer,
+  parseCitations,
+  splitCitations,
+  stripCitations,
+} from '@/lib/rag/citations';
 import { buildMessages, formatSources } from '@/lib/rag/prompt';
 import type { Hit } from '@/lib/rag/search';
 
@@ -51,6 +58,13 @@ describe('citations', () => {
     expect(checkCitations('[1 "hepatic impairment (Child-Pugh C)"]', ['severe hepatic impairment (Child-\nPugh C)']).unverified).toEqual([]);
     // the right words, but from the other source
     expect(checkCitations('Avoid [1 "severe hepatic impairment"].', sources).unverified).toEqual([1]);
+  });
+});
+
+describe('splitCitations', () => {
+  it('turns each [n] into one number and keeps the text around it, nothing doubled', () => {
+    expect(splitCitations('5 mg twice daily [3]. Avoid [1][2].')).toEqual(['5 mg twice daily ', 3, '. Avoid ', 1, 2, '.']);
+    expect(splitCitations('no marks')).toEqual(['no marks']);
   });
 });
 
